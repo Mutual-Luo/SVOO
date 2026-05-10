@@ -1,0 +1,12 @@
+[submodule "svoo/kernels/3rdparty/cutlass"]
+	path = svoo/kernels/3rdparty/cutlass
+	url = https://github.com/NVIDIA/cutlass.git
+[submodule "svoo/kernels/3rdparty/flashinfer"]
+	path = svoo/kernels/3rdparty/flashinfer
+	url = https://github.com/flashinfer-ai/flashinfer.git
+[submodule "svoo/kernels/3rdparty/pybind"]
+	path = svoo/kernels/3rdparty/pybind
+	url = https://github.com/pybind/pybind11.git
+[submodule "svoo/kernels/3rdparty/flash-attention"]
+	path = svoo/kernels/3rdparty/flash-attention
+	url = https://github.com/Dao-AILab/flash-attention.git

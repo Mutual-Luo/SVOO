@@ -1,0 +1,79 @@
+#!/bin/bash
+set -euo pipefail
+
+: "${CONDA_PREFIX:?Please activate the svoo conda environment before running this script.}"
+
+CONDA_ENV_PATH=$CONDA_PREFIX
+
+if [[ -z "${CC:-}" && -x "$CONDA_ENV_PATH/bin/x86_64-conda-linux-gnu-gcc" ]]; then
+    export CC="$CONDA_ENV_PATH/bin/x86_64-conda-linux-gnu-gcc"
+fi
+if [[ -z "${CXX:-}" && -x "$CONDA_ENV_PATH/bin/x86_64-conda-linux-gnu-g++" ]]; then
+    export CXX="$CONDA_ENV_PATH/bin/x86_64-conda-linux-gnu-g++"
+fi
+if [[ -z "${CUDAHOSTCXX:-}" && -n "${CXX:-}" ]]; then
+    export CUDAHOSTCXX="$CXX"
+fi
+
+export CUDA_HOME=$CONDA_ENV_PATH
+export CUDA_PATH=$CONDA_ENV_PATH
+export PATH=$CUDA_HOME/bin:$PATH
+export LD_LIBRARY_PATH=$CUDA_HOME/lib:${LD_LIBRARY_PATH:-}
+
+# Build only the Hopper target used by the project.
+export TORCH_CUDA_ARCH_LIST="9.0"
+
+NVJITLINK_PATH=$(python -c "import site; print(site.getsitepackages()[0] + '/nvidia/nvjitlink/lib')")
+if [[ -d "$NVJITLINK_PATH" ]]; then
+    export LD_LIBRARY_PATH=$NVJITLINK_PATH:${LD_LIBRARY_PATH:-}
+fi
+
+CUDA_TARGET_PATH="$CONDA_PREFIX/targets/x86_64-linux"
+NVTX_INCLUDE_PATH=$(python - <<'PY'
+import importlib.util
+import pathlib
+
+spec = importlib.util.find_spec("nvidia.nvtx.include")
+print(pathlib.Path(spec.origin).parent if spec else "")
+PY
+)
+
+rm -rf build
+mkdir -p build
+cd build
+
+cmake_args=(
+    ..
+    -DCMAKE_PREFIX_PATH="$(python -c 'import torch;print(torch.utils.cmake_prefix_path)')"
+    -DTORCH_CUDA_ARCH_LIST="9.0"
+    -DCAFFE2_USE_CUDA=ON
+    -DUSE_CUDA=ON
+)
+
+if [[ -n "${CC:-}" ]]; then
+    cmake_args+=(-DCMAKE_C_COMPILER="$CC")
+fi
+if [[ -n "${CXX:-}" ]]; then
+    cmake_args+=(-DCMAKE_CXX_COMPILER="$CXX")
+fi
+if [[ -x "$CONDA_PREFIX/bin/nvcc" ]]; then
+    cmake_args+=(-DCMAKE_CUDA_COMPILER="$CONDA_PREFIX/bin/nvcc")
+fi
+if [[ -d "$CUDA_TARGET_PATH" ]]; then
+    cmake_args+=(
+        -DCUDAToolkit_ROOT="$CUDA_TARGET_PATH"
+        -DCUDA_TOOLKIT_ROOT_DIR="$CUDA_TARGET_PATH"
+        -DCUDA_INCLUDE_DIRS="$CUDA_TARGET_PATH/include"
+    )
+fi
+
+if [[ -n "$NVTX_INCLUDE_PATH" ]]; then
+    cmake_args+=(
+        -DUSE_SYSTEM_NVTX=ON
+        -Dnvtx3_dir="$NVTX_INCLUDE_PATH"
+    )
+fi
+
+cmake "${cmake_args[@]}"
+
+make -j"${MAX_JOBS:-$(nproc)}"

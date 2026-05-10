@@ -1,0 +1,60 @@
+# Local model/data/checkpoint downloads
+download/
+reference/
+VBench/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.onnx
+*.engine
+*.gguf
+
+# Generated inference outputs
+result/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.gif
+
+# Python/test/cache artifacts
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# Kernel/build caches
+.triton_cache/
+svoo/kernels/build/
+*.so
+*.o
+
+# Offline profiling generated artifacts.
+# Keep canonical CSV files under sparsity_profiles/ trackable.
+sparsity_profiles/runs/
+
+# Legacy offline artifact layouts; keep ignored for older local runs.
+sparsity_profiles/offline_runs/
+sparsity_profiles/parallel_logs/
+sparsity_profiles/*/logs/
+sparsity_profiles/*/raw/
+sparsity_profiles/*/videos/
+sparsity_profiles_debug*/
+sparsity_profiles_exact/
+sparsity_profiles_optimized/
+
+# Logs
+*.log
+
+## Codex
+AGENTS.md
