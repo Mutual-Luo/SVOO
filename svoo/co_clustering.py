@@ -8,6 +8,7 @@ import triton
 import triton.language as tl
 
 from svoo.kernels.triton.l2norm import triton_l2norm_forward
+from svoo.utils.flashinfer_sparse import make_variable_block_sparse_attention_wrapper
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -1275,7 +1276,9 @@ def dynamic_block_sparse_fwd_flashinfer(
 
     workspace_bytes = _env_int("SVOO_FLASHINFER_SPARSE_WORKSPACE_BYTES", 128 * 1024 * 1024)
     f_buffer = torch.empty((workspace_bytes,), dtype=torch.uint8, device=q.device)
-    wrapper = flashinfer_sparse.VariableBlockSparseAttentionWrapper(f_buffer, backend="auto")
+    wrapper = make_variable_block_sparse_attention_wrapper(
+        flashinfer_sparse, f_buffer, backend="auto"
+    )
     int_workspace_bytes = _env_int("SVOO_FLASHINFER_SPARSE_INT_WORKSPACE_BYTES", 0)
     if int_workspace_bytes > 0:
         i_buffer = torch.empty((int_workspace_bytes,), dtype=torch.uint8, device=q.device)

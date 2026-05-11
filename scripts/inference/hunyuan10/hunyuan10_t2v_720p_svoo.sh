@@ -11,12 +11,12 @@ set -euo pipefail
 #   PROMPT_FILE=/path/file     Override the prompt file.
 #   OUTPUT_DIR=/path/dir       Override the result directory.
 #   OUTPUT_FILE=/path/file.mp4 Override the exact output video path.
-#   CPU_OFFLOAD=1              Enable model CPU offload if VRAM is insufficient.
+#   CPU_OFFLOAD=1              Reduce GPU memory usage with model CPU offload; may be slower.
 #   SVOO_CACHE_ROOT=/path/dir   Override compiler cache root.
 #   TRITON_CACHE_DIR=/path/dir  Override Triton JIT cache.
-#   SVOO_TRITON_WARMUP=0       Skip pre-progress-bar Triton warmup.
-#   SVOO_TRITON_TUNE=auto      Tune SVOO Triton configs before inference; default uses fixed empirical configs.
-#   SVOO_ENABLE_MEM_SAVE=0|1    Release large SVOO intermediates earlier.
+#   SVOO_TRITON_WARMUP=1       Compile SVOO Triton kernels before the progress bar.
+#   SVOO_TRITON_TUNE=auto      Search the fastest Triton config for the current GPU.
+#   SVOO_ENABLE_MEM_SAVE=0|1    Reduce GPU memory usage by releasing large SVOO intermediates earlier.
 #   DRY_RUN=1                  Print the command without running inference.
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -38,6 +38,9 @@ if [ -n "${CUDA_HOME:-}" ] && [ -x "${CUDA_HOME}/bin/nvcc" ]; then
   export CUDACXX="${CUDACXX:-${CUDA_HOME}/bin/nvcc}"
   export PATH="${CUDA_HOME}/bin:${PATH}"
   export LD_LIBRARY_PATH="${CUDA_HOME}/lib:${CUDA_HOME}/targets/x86_64-linux/lib:${LD_LIBRARY_PATH:-}"
+  if [ -z "${FLASHINFER_EXTRA_LDFLAGS:-}" ]; then
+    export FLASHINFER_EXTRA_LDFLAGS="-L${CUDA_HOME}/lib -L${CUDA_HOME}/targets/x86_64-linux/lib -L${CUDA_HOME}/lib/stubs -L${CUDA_HOME}/targets/x86_64-linux/lib/stubs"
+  fi
 fi
 
 model_root="${MODEL_ROOT:-${root}/../../models}"
@@ -45,7 +48,7 @@ prompt_id="${PROMPT_ID:-1}"
 prompt_file="${PROMPT_FILE:-data/example/${prompt_id}/prompt.txt}"
 gpu_id="${GPU:-${GPUS:-${CUDA_VISIBLE_DEVICES:-0}}}"
 gpu_id="${gpu_id%%[ ,]*}"
-default_mem_save=0
+default_mem_save=1
 
 cache_root="${SVOO_CACHE_ROOT:-${root}/.triton_cache}"
 export TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-${cache_root}}"

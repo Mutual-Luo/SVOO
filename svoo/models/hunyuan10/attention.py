@@ -11,6 +11,7 @@ from flash_attn.flash_attn_interface import flash_attn_varlen_func
 from torch.nn.attention.flex_attention import flex_attention
 
 from ...kernels.triton.permute import apply_inverse_permutation_triton, permute_tensor_by_labels_triton
+from ...utils.flashinfer_sparse import make_variable_block_sparse_attention_wrapper
 from ...co_clustering import (
     batch_kmeans_Euclid,
     density_calculation,
@@ -778,7 +779,7 @@ class Hunyuan_SAPAttn_Processor2_0(Hunyuan_SVGAttn_Processor2_0):
 
     # SVOO / reuse / dynamic min_kc_ratio
     use_svoo = True
-    enable_mem_save = bool(int(os.environ.get("SVOO_ENABLE_MEM_SAVE", "0")))
+    enable_mem_save = bool(int(os.environ.get("SVOO_ENABLE_MEM_SAVE", "1")))
     start_reuse_step = None  # 1-based step index; None disables reuse
     reuse_interval = 1
 
@@ -1177,7 +1178,9 @@ def flashinfer_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, m
     # Prepare flashinfer wrapper
     workspace_bytes = int(os.environ.get("SVOO_FLASHINFER_VARLEN_WORKSPACE_BYTES", 128 * 1024 * 1024))
     float_workspace_buffer = torch.empty((workspace_bytes,), dtype=torch.uint8, device=q.device)
-    wrapper = flashinfer.sparse.VariableBlockSparseAttentionWrapper(float_workspace_buffer, backend="auto")
+    wrapper = make_variable_block_sparse_attention_wrapper(
+        flashinfer.sparse, float_workspace_buffer, backend="auto"
+    )
 
     # Reshape inputs to (B * H, ...)
     q = q.reshape(B * H, S, D)

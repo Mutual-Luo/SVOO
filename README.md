@@ -1,24 +1,19 @@
 # SVOO
 
-Training-free sparse attention for video generation with offline sparsity profiles and online QK co-clustering.
+**Attention Sparsity is Input-Stable: Training-Free Sparse Attention for Video Generation via Offline Sparsity Profiling and Online QK Co-Clustering**
+
+🎆 Accepted to **ICML 2026 Main Track**.
+
+SVOO is a training-free sparse attention method for video generation with offline sparsity profiles and online QK co-clustering.
 
 SVOO supports Wan and HunyuanVideo 1.0 text-to-video and image-to-video inference. The release scripts are tuned for single-GPU 720p inference on 80GB-class NVIDIA GPUs.
-
-## Highlights
-
-- Wan T2V and I2V support, including Wan2.1 and Wan2.2 A14B.
-- HunyuanVideo 1.0 T2V and I2V support.
-- Canonical sparsity profiles are provided in `sparsity_profiles/`.
-- Lightweight kernel warmup runs before the inference progress bar.
-- Fixed empirical Triton configs are used by default; local tuning is optional.
-- CPU offload is disabled by default.
 
 ## Installation
 
 Prerequisites: Linux, Conda, Git, and an NVIDIA GPU with CUDA support.
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Mutual-Luo/SVOO.git
 cd svoo
 bash scripts/build_env.sh
 conda activate svoo
@@ -49,6 +44,17 @@ Inference scripts first look for local weights under `MODEL_ROOT`. A single mode
 ```bash
 MODEL_PATH=/path/to/model GPUS=0 bash scripts/inference/wan/wan_t2v_720p_svoo.sh
 ```
+
+## Offline Sparsity Profiles
+
+Canonical profiles are already included. To regenerate them:
+
+```bash
+GPUS=0 bash scripts/offline/generate_sparsity_profiles.sh wan21_t2v_14b
+GPUS="0 1 2 3" bash scripts/offline/generate_sparsity_profiles.sh all
+```
+
+Profiling prompts live in `data/profile_data/prompt.txt`. See `scripts/offline/README.md` for profiling options and output layout.
 
 ## Inference
 
@@ -86,24 +92,13 @@ Outputs are written to `result/` unless `OUTPUT_DIR` or `OUTPUT_FILE` is set.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `CPU_OFFLOAD` | `0` | Set `1` only when extra VRAM headroom is required |
-| `SVOO_ENABLE_MEM_SAVE` | Model-specific | Releases large SVOO intermediates earlier |
+| `CPU_OFFLOAD` | `0` | Set `1` to reduce GPU memory usage with CPU offload; this can be slower |
+| `SVOO_ENABLE_MEM_SAVE` | `1` | Reduces GPU memory usage by releasing large SVOO intermediates earlier |
 | `SVOO_TRITON_WARMUP` | `1` | Required kernel warmup before the progress bar |
 | `SVOO_TRITON_TUNE` | `fixed` | Set `auto` to search the fastest Triton config for the current GPU |
 | `SVOO_CACHE_ROOT` | `.triton_cache` | Compiler and FlashInfer cache root |
 
 Warmup preserves RNG state and is designed not to affect generated videos. Compilation happens before the inference progress bar.
-
-## Offline Sparsity Profiles
-
-Canonical profiles are already included. To regenerate them:
-
-```bash
-GPUS=0 bash scripts/offline/generate_sparsity_profiles.sh wan21_t2v_14b
-GPUS="0 1 2 3" bash scripts/offline/generate_sparsity_profiles.sh all
-```
-
-Profiling prompts live in `data/profile_data/prompt.txt`. See `scripts/offline/README.md` for profiling options and output layout.
 
 ## Notes
 

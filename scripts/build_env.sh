@@ -111,6 +111,9 @@ activate_env() {
     export CUDACXX="${CONDA_PREFIX}/bin/nvcc"
     export PATH="${CUDA_HOME}/bin:${PATH}"
     export LD_LIBRARY_PATH="${CUDA_HOME}/lib:${CUDA_HOME}/targets/x86_64-linux/lib:${LD_LIBRARY_PATH:-}"
+    if [ -z "${FLASHINFER_EXTRA_LDFLAGS:-}" ]; then
+        export FLASHINFER_EXTRA_LDFLAGS="-L${CUDA_HOME}/lib -L${CUDA_HOME}/targets/x86_64-linux/lib -L${CUDA_HOME}/lib/stubs -L${CUDA_HOME}/targets/x86_64-linux/lib/stubs"
+    fi
 
     if [ -x "${CONDA_PREFIX}/bin/x86_64-conda-linux-gnu-gcc" ]; then
         export CC="${CONDA_PREFIX}/bin/x86_64-conda-linux-gnu-gcc"

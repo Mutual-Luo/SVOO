@@ -87,12 +87,34 @@ resolve_model_id() {
 
 setup_env() {
   cd "${PROJECT_ROOT}"
+  local python_bin="${PYTHON:-python}"
+  if [ -z "${CUDA_HOME:-}" ]; then
+    local python_path
+    python_path="$(command -v "${python_bin}" 2>/dev/null || true)"
+    if [ -n "${python_path}" ]; then
+      local python_prefix
+      python_prefix="$(cd "$(dirname "${python_path}")/.." && pwd)"
+      if [ -x "${python_prefix}/bin/nvcc" ]; then
+        export CUDA_HOME="${python_prefix}"
+        export CUDA_PATH="${CUDA_HOME}"
+      fi
+    fi
+  fi
+  if [ -n "${CUDA_HOME:-}" ] && [ -x "${CUDA_HOME}/bin/nvcc" ]; then
+    export CUDA_PATH="${CUDA_PATH:-${CUDA_HOME}}"
+    export CUDACXX="${CUDACXX:-${CUDA_HOME}/bin/nvcc}"
+    export PATH="${CUDA_HOME}/bin:${PATH}"
+    export LD_LIBRARY_PATH="${CUDA_HOME}/lib:${CUDA_HOME}/targets/x86_64-linux/lib:${LD_LIBRARY_PATH:-}"
+    if [ -z "${FLASHINFER_EXTRA_LDFLAGS:-}" ]; then
+      export FLASHINFER_EXTRA_LDFLAGS="-L${CUDA_HOME}/lib -L${CUDA_HOME}/targets/x86_64-linux/lib -L${CUDA_HOME}/lib/stubs -L${CUDA_HOME}/targets/x86_64-linux/lib/stubs"
+    fi
+  fi
   export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-0}"
   export TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-${PROJECT_ROOT}/.triton_cache}"
   export FLASHINFER_WORKSPACE_BASE="${FLASHINFER_WORKSPACE_BASE:-${PROJECT_ROOT}/.triton_cache/flashinfer}"
   export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
   export SVG_REUSE_DEBUG="${SVG_REUSE_DEBUG:-0}"
-  export SVOO_ENABLE_MEM_SAVE="${SVOO_ENABLE_MEM_SAVE:-0}"
+  export SVOO_ENABLE_MEM_SAVE="${SVOO_ENABLE_MEM_SAVE:-1}"
   export FLASHINFER_WORKSPACE_SIZE="${FLASHINFER_WORKSPACE_SIZE:-128000000}"
   export SVOO_SPARSITY_USE_TRITON_PROB_COUNTS="${SVOO_SPARSITY_USE_TRITON_PROB_COUNTS:-1}"
   export SVOO_SPARSITY_TRITON_BOUNDARY_TOL="${SVOO_SPARSITY_TRITON_BOUNDARY_TOL:-1e-6}"
