@@ -1095,6 +1095,7 @@ class Hunyuan_SAPAttn_Processor2_0(Hunyuan_SVGAttn_Processor2_0):
             )
             if self.enable_mem_save:
                 del query_video, key_video, value_video
+                del query, key, value
 
             output_permuted = dynamic_block_sparse_fwd_flashinfer(
                 q_perm, k_perm, v_perm, dyn_map, qc_sz_s, kc_sz_s, is_cpu=False
@@ -1179,5 +1180,6 @@ def flashinfer_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, m
     )
 
     o = wrapper.run(q, k, v)  # [num_qo_heads, qo_len, head_dim]
+    del wrapper, float_workspace_buffer
     o = o.reshape(B, H, S, D)
     return o
