@@ -1,5 +1,4 @@
 import os
-from types import MethodType
 from typing import Optional, Tuple, Union
 
 import torch
@@ -245,17 +244,29 @@ def _memory_efficient_plan(
     self._gqa_group_size = num_qo_heads // num_kv_heads
 
 
+def _patch_variable_block_sparse_wrapper_class(flashinfer_sparse) -> None:
+    cls = flashinfer_sparse.VariableBlockSparseAttentionWrapper
+    if getattr(cls, "_svoo_memory_efficient_plan_patched", False):
+        return
+
+    original_plan = cls.plan
+
+    def plan(self, *plan_args, **plan_kwargs):
+        if _env_flag("SVOO_FLASHINFER_MEM_EFFICIENT_PLAN", default=True):
+            return _memory_efficient_plan(
+                self, flashinfer_sparse, *plan_args, **plan_kwargs
+            )
+        return original_plan(self, *plan_args, **plan_kwargs)
+
+    cls._svoo_original_plan = original_plan
+    cls.plan = plan
+    cls._svoo_memory_efficient_plan_patched = True
+
+
 def make_variable_block_sparse_attention_wrapper(
     flashinfer_sparse,
     *args,
     **kwargs,
 ):
-    wrapper = flashinfer_sparse.VariableBlockSparseAttentionWrapper(*args, **kwargs)
-    if _env_flag("SVOO_FLASHINFER_MEM_EFFICIENT_PLAN", default=True):
-        wrapper.plan = MethodType(
-            lambda self, *plan_args, **plan_kwargs: _memory_efficient_plan(
-                self, flashinfer_sparse, *plan_args, **plan_kwargs
-            ),
-            wrapper,
-        )
-    return wrapper
+    _patch_variable_block_sparse_wrapper_class(flashinfer_sparse)
+    return flashinfer_sparse.VariableBlockSparseAttentionWrapper(*args, **kwargs)

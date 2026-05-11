@@ -1276,8 +1276,14 @@ def dynamic_block_sparse_fwd_flashinfer(
 
     workspace_bytes = _env_int("SVOO_FLASHINFER_SPARSE_WORKSPACE_BYTES", 128 * 1024 * 1024)
     f_buffer = torch.empty((workspace_bytes,), dtype=torch.uint8, device=q.device)
+    flashinfer_backend = os.environ.get("SVOO_FLASHINFER_SPARSE_BACKEND", "auto").lower()
+    if flashinfer_backend not in ("auto", "fa2", "fa3"):
+        raise ValueError(
+            "SVOO_FLASHINFER_SPARSE_BACKEND must be one of: auto, fa2, fa3; "
+            f"got {flashinfer_backend!r}"
+        )
     wrapper = make_variable_block_sparse_attention_wrapper(
-        flashinfer_sparse, f_buffer, backend="auto"
+        flashinfer_sparse, f_buffer, backend=flashinfer_backend
     )
     int_workspace_bytes = _env_int("SVOO_FLASHINFER_SPARSE_INT_WORKSPACE_BYTES", 0)
     if int_workspace_bytes > 0:
@@ -1307,6 +1313,9 @@ def dynamic_block_sparse_fwd_flashinfer(
     )
 
     o = wrapper.run(q, k, v)  # [num_qo_heads, qo_len, head_dim]
+    del wrapper, f_buffer
+    if int_workspace_bytes > 0:
+        del i_buffer
     o = o.reshape(B, H, S, D)
     return o
 

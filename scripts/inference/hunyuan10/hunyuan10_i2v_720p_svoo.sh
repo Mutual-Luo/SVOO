@@ -76,8 +76,8 @@ min_kc_ratio=0.10
 kmeans_iter_init=2
 kmeans_iter_step=2
 start_reuse_step=6
-reuse_interval=25
-dynamic_min_kc_ratio_min=0.05
+reuse_interval=50
+dynamic_min_kc_ratio_min=0.03
 dynamic_min_kc_ratio_max=0.10
 
 local_model="${model_root}/${model_dir}"

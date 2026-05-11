@@ -350,6 +350,7 @@ def replace_wan_attention(
                 current_processor.sparsity_query_samples = sparsity_query_samples
                 current_processor.sparsity_threshold = sparsity_threshold
                 current_processor.sparsity_start_step = sparsity_start_step
+                current_processor.transformer_stage = "high-noise transformer"
                 m.attn1.set_processor(current_processor)
         if getattr(pipe, "transformer_2", None) is not None:
             for layer_idx, m in enumerate(pipe.transformer_2.blocks):
@@ -364,6 +365,7 @@ def replace_wan_attention(
                     current_processor.sparsity_query_samples = sparsity_query_samples
                     current_processor.sparsity_threshold = sparsity_threshold
                     current_processor.sparsity_start_step = sparsity_start_step
+                    current_processor.transformer_stage = "low-noise transformer"
                     m.attn1.set_processor(current_processor)
 
         # Precompile Triton kernels before inference progress starts.

@@ -763,7 +763,11 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
                     query, key, layer_idx
                 )
                 self.centroids_init = True
-                print(f"Centroids initialized at layer {layer_idx}. Init step: {self.kmeans_iter_init}")
+                transformer_stage = getattr(self, "transformer_stage", "transformer")
+                print(
+                    f"Centroids initialized at {transformer_stage} layer {layer_idx}. "
+                    f"Init step: {self.kmeans_iter_init}"
+                )
             else:
                 qlabels, qcentroids, qcluster_sizes, qiter, klabels, kcentroids, kcluster_sizes, kiter = self.kmeans_step(
                     query, key, layer_idx
