@@ -69,6 +69,8 @@ Profiling prompts live in `data/profile_data/prompt.txt`. See `scripts/offline/R
 
 ## Inference
 
+Wan 14B/A14B and HunyuanVideo 720p inference require an 80GB GPU; Wan2.1-T2V-1.3B can run on 40GB GPUs.
+
 | Task | Command |
 | --- | --- |
 | Wan T2V | `MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=1.3B bash scripts/inference/wan/wan_t2v_720p_svoo.sh` |
