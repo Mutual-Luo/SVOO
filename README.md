@@ -1,12 +1,21 @@
-# SVOO
+<div align="center">
 
-**Attention Sparsity is Input-Stable: Training-Free Sparse Attention for Video Generation via Offline Sparsity Profiling and Online QK Co-Clustering**
+<h1>SVOO</h1>
 
-🎆 Accepted to **ICML 2026 Main Track**.
+<h2>Attention Sparsity is Input-Stable: Training-Free Sparse Attention for Video Generation via Offline Sparsity Profiling and Online QK Co-Clustering</h2>
+
+<h3>🎉 Accepted to <strong>ICML 2026 Main Track</strong></h3>
+
+<p><strong>Jiayi Luo, Jiayu Chen, Jiankun Wang, Cong Wang, Hanxin Zhu, Qingyun Sun, Chen Gao, Zhibo Chen, Jianxin Li</strong></p>
+
+<p>
+  <a href="https://arxiv.org/pdf/2603.18636"><img alt="Paper" src="https://img.shields.io/badge/Paper-arXiv%3A2603.18636-b31b1b.svg"></a>
+  <a href="https://icml.cc/"><img alt="Conference" src="https://img.shields.io/badge/ICML-2026%20Main%20Track-4c6ef5.svg"></a>
+</p>
+
+</div>
 
 SVOO is a training-free sparse attention method for video generation with offline sparsity profiles and online QK co-clustering.
-
-SVOO supports Wan and HunyuanVideo 1.0 text-to-video and image-to-video inference. The release scripts are tuned for single-GPU 720p inference on 80GB-class NVIDIA GPUs.
 
 ## Installation
 
