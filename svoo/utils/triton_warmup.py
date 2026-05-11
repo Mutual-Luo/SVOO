@@ -260,6 +260,11 @@ def warmup_svoo_triton_kernels(
         f"(mode={_warmup_mode()}, seq_len={warmup_seq_len}/{seq_len})...",
         flush=True,
     )
+    print(
+        "[SVOO] First run may spend extra time compiling kernels. "
+        "This happens before the inference progress bar and is not counted in generation speed.",
+        flush=True,
+    )
 
     try:
         with _preserve_rng_state(device):

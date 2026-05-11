@@ -15,6 +15,7 @@ from diffusers.utils import load_image, export_to_video
 
 from svoo.utils.seed import seed_everything
 from svoo.utils.data import load_prompt_or_image
+from svoo.utils.runtime import configure_cuda_linalg_backend
 from svoo.models.hunyuan10.inference import replace_hunyuan10_flashattention, replace_hunyuan10_attention
 from svoo.models.hunyuan10.utils import get_prompt_length
 from svoo.models.hunyuan10.pipelines import Hunyuan10VideoImageToVideoPipelineWithCPUOffload
@@ -76,15 +77,14 @@ if __name__ == "__main__":
 
     seed_everything(args.seed)
 
-    # Avoid intermittent cuSOLVER failures.
-    torch.backends.cuda.preferred_linalg_library(backend="magma")
+    configure_cuda_linalg_backend()
 
     # Load model.
-    transformer = HunyuanVideoTransformer3DModel.from_pretrained(args.model_id, subfolder="transformer", torch_dtype=torch.bfloat16)
+    transformer = HunyuanVideoTransformer3DModel.from_pretrained(args.model_id, subfolder="transformer", dtype=torch.bfloat16)
     flow_shift = 7.0
     scheduler = FlowMatchEulerDiscreteScheduler(shift=flow_shift)
     pipe = Hunyuan10VideoImageToVideoPipelineWithCPUOffload.from_pretrained(
-        args.model_id, transformer=transformer, scheduler=scheduler, torch_dtype=torch.bfloat16
+        args.model_id, transformer=transformer, scheduler=scheduler, dtype=torch.bfloat16
     )
     pipe.vae.enable_tiling()
     pipe.to("cuda")

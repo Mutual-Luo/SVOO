@@ -9,6 +9,7 @@ from diffusers.utils import export_to_video
 
 from svoo.utils.seed import seed_everything
 from svoo.utils.data import load_prompt_or_image
+from svoo.utils.runtime import configure_cuda_linalg_backend
 from svoo.models.hunyuan10.inference import replace_hunyuan10_flashattention, replace_hunyuan10_attention
 from svoo.models.hunyuan10.utils import get_prompt_length
 from svoo.models.hunyuan10.pipelines import Hunyuan10VideoPipelineWithCPUOffload
@@ -71,15 +72,14 @@ if __name__ == "__main__":
 
     seed_everything(args.seed)
 
-    # Avoid intermittent cuSOLVER failures.
-    torch.backends.cuda.preferred_linalg_library(backend="magma")
+    configure_cuda_linalg_backend()
     
     if args.skip_existing:
         if os.path.exists(args.output_file):
             exit(0)
 
     # Load model.
-    model_kwargs = {"torch_dtype": torch.bfloat16}
+    model_kwargs = {"dtype": torch.bfloat16}
     if args.model_id == "tencent/HunyuanVideo":
         model_kwargs["revision"] = "refs/pr/18"
 

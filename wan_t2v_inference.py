@@ -9,6 +9,7 @@ from diffusers.utils import export_to_video
 
 from svoo.models.wan.inference import replace_wan_attention
 from svoo.utils.data import load_prompt_or_image
+from svoo.utils.runtime import configure_cuda_linalg_backend
 from svoo.utils.seed import seed_everything
 
 
@@ -73,8 +74,7 @@ if __name__ == "__main__":
 
     seed_everything(args.seed)
 
-    # Avoid intermittent cuSOLVER failures.
-    torch.backends.cuda.preferred_linalg_library(backend="magma")
+    configure_cuda_linalg_backend()
     
     if args.skip_existing:
         if os.path.exists(args.output_file):
@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     # Load model.
     model_id = args.model_id
-    pipe = WanPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16)
+    pipe = WanPipeline.from_pretrained(model_id, dtype=torch.bfloat16)
     pipe.to("cuda")
     if hasattr(pipe, 'text_encoder') and pipe.text_encoder is not None:
         pipe.text_encoder.to("cuda:0")

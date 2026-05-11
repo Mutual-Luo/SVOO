@@ -46,7 +46,7 @@ fi
 model_root="${MODEL_ROOT:-${root}/../../models}"
 prompt_id="${PROMPT_ID:-1}"
 prompt_file="${PROMPT_FILE:-data/example/${prompt_id}/prompt.txt}"
-gpu_id="${GPU:-${GPUS:-${CUDA_VISIBLE_DEVICES:-0}}}"
+gpu_id="${GPU:-${CUDA_VISIBLE_DEVICES:-${GPUS:-0}}}"
 gpu_id="${gpu_id%%[ ,]*}"
 default_mem_save=1
 
