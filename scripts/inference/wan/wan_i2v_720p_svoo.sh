@@ -80,7 +80,7 @@ case "${model_size}" in
     kmeans_iter_step=2
     start_reuse_step=9
     reuse_interval=20
-    dynamic_min_kc_ratio_min=0.03
+    dynamic_min_kc_ratio_min=0.05
     dynamic_min_kc_ratio_max=0.10
     ;;
   A14B|a14b|wan22|wan22_i2v_a14b)
@@ -102,7 +102,7 @@ case "${model_size}" in
     kmeans_iter_step=2
     start_reuse_step=9
     reuse_interval=20
-    dynamic_min_kc_ratio_min=0.03
+    dynamic_min_kc_ratio_min=0.05
     dynamic_min_kc_ratio_max=0.10
     ;;
   *)
