@@ -8,6 +8,9 @@ from copy import deepcopy
 import numpy as np
 import torch
 from diffusers import HunyuanVideoTransformer3DModel, FlowMatchEulerDiscreteScheduler
+from diffusers.pipelines.hunyuan_video.pipeline_hunyuan_video_image2video import (
+    DEFAULT_PROMPT_TEMPLATE as HUNYUAN_I2V_PROMPT_TEMPLATE,
+)
 from diffusers.utils import load_image, export_to_video
 
 from svoo.utils.seed import seed_everything
@@ -146,7 +149,21 @@ if __name__ == "__main__":
     if args.negative_prompt is None:
         args.negative_prompt = "Aerial view, aerial view, overexposed, low quality, deformation, a poor composition, bad hands, bad teeth, bad eyes, bad limbs, distortion"
 
-    prompt_length = get_prompt_length(pipe, args.prompt)
+    prompt_template = dict(HUNYUAN_I2V_PROMPT_TEMPLATE)
+    default_boundary_id = prompt_template.get("double_return_token_id")
+    template_probe = pipe.tokenizer(
+        prompt_template["template"].format(""),
+        max_length=prompt_template.get("crop_start", 0) + 16,
+        padding="max_length",
+        truncation=True,
+        return_tensors="pt",
+    ).input_ids[0]
+    if default_boundary_id is not None and not torch.any(template_probe == default_boundary_id):
+        eot_id = pipe.tokenizer.convert_tokens_to_ids("<|eot_id|>")
+        if isinstance(eot_id, int) and eot_id >= 0:
+            prompt_template["double_return_token_id"] = eot_id
+
+    prompt_length = get_prompt_length(pipe, args.prompt, prompt_template=prompt_template)
     print(f"Prompt length: {prompt_length}")
 
     # Install SVOO attention.
@@ -217,6 +234,7 @@ if __name__ == "__main__":
         guidance_scale=6.0,
         num_inference_steps=args.num_inference_steps,
         callback_on_step_end=_on_step_end,
+        prompt_template=prompt_template,
         cpu_offload=args.enable_cpu_offload,
     ).frames[0]
 

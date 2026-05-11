@@ -253,6 +253,7 @@ def replace_hunyuan10_attention(
             device=device,
             cfg_values=(1,),
             inverse_seq_len=context_length + num_frame * frame_size,
+            include_flashinfer_sparse=True,
         )
 
     elif pattern == "SPG":

@@ -89,9 +89,10 @@ setup_env() {
   cd "${PROJECT_ROOT}"
   export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-0}"
   export TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-${PROJECT_ROOT}/.triton_cache}"
+  export FLASHINFER_WORKSPACE_BASE="${FLASHINFER_WORKSPACE_BASE:-${PROJECT_ROOT}/.triton_cache/flashinfer}"
   export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
   export SVG_REUSE_DEBUG="${SVG_REUSE_DEBUG:-0}"
-  export SVG_ENABLE_MEM_SAVE="${SVG_ENABLE_MEM_SAVE:-0}"
+  export SVOO_ENABLE_MEM_SAVE="${SVOO_ENABLE_MEM_SAVE:-0}"
   export FLASHINFER_WORKSPACE_SIZE="${FLASHINFER_WORKSPACE_SIZE:-128000000}"
   export SVOO_SPARSITY_USE_TRITON_PROB_COUNTS="${SVOO_SPARSITY_USE_TRITON_PROB_COUNTS:-1}"
   export SVOO_SPARSITY_TRITON_BOUNDARY_TOL="${SVOO_SPARSITY_TRITON_BOUNDARY_TOL:-1e-6}"
@@ -258,7 +259,7 @@ run_model() {
     QUERY_SAMPLE_TAG="qall"
   fi
 
-  mkdir -p "$(dirname "${output_csv}")" "${RAW_DIR}" "${LOG_DIR}" "${VIDEO_DIR}" "${TRITON_CACHE_DIR}"
+  mkdir -p "$(dirname "${output_csv}")" "${RAW_DIR}" "${LOG_DIR}" "${VIDEO_DIR}" "${TRITON_CACHE_DIR}" "${FLASHINFER_WORKSPACE_BASE}"
 
   echo "=== ${MODEL_KEY} ==="
   echo "MODEL_ID=${MODEL_ID_RESOLVED}"

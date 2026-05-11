@@ -778,7 +778,7 @@ class Hunyuan_SAPAttn_Processor2_0(Hunyuan_SVGAttn_Processor2_0):
 
     # SVOO / reuse / dynamic min_kc_ratio
     use_svoo = True
-    enable_mem_save = bool(int(os.environ.get("SVG_ENABLE_MEM_SAVE", "0")))
+    enable_mem_save = bool(int(os.environ.get("SVOO_ENABLE_MEM_SAVE", "0")))
     start_reuse_step = None  # 1-based step index; None disables reuse
     reuse_interval = 1
 
@@ -1175,7 +1175,8 @@ def flashinfer_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_seqlen_q, m
     assert torch.all(block_row_sz.sum(dim=2) == block_row_sz.sum(dim=2)[0, 0])
 
     # Prepare flashinfer wrapper
-    float_workspace_buffer = torch.empty(128 * 1024 * 1024, device=q.device)
+    workspace_bytes = int(os.environ.get("SVOO_FLASHINFER_VARLEN_WORKSPACE_BYTES", 128 * 1024 * 1024))
+    float_workspace_buffer = torch.empty((workspace_bytes,), dtype=torch.uint8, device=q.device)
     wrapper = flashinfer.sparse.VariableBlockSparseAttentionWrapper(float_workspace_buffer, backend="auto")
 
     # Reshape inputs to (B * H, ...)

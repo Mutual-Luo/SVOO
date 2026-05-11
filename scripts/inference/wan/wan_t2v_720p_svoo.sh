@@ -12,12 +12,33 @@ set -euo pipefail
 #   PROMPT_FILE=/path/file     Override the prompt file.
 #   OUTPUT_DIR=/path/dir       Override the result directory.
 #   OUTPUT_FILE=/path/file.mp4 Override the exact output video path.
-#   TRITON_CACHE_DIR=/path/dir Store Triton JIT cache.
+#   SVOO_CACHE_ROOT=/path/dir   Override compiler cache root.
+#   TRITON_CACHE_DIR=/path/dir  Override Triton JIT cache.
 #   SVOO_TRITON_WARMUP=0       Skip pre-progress-bar Triton warmup.
+#   SVOO_TRITON_TUNE=auto      Tune SVOO Triton configs before inference; default uses fixed empirical configs.
+#   SVOO_ENABLE_MEM_SAVE=0|1    Release large SVOO intermediates earlier.
 #   DRY_RUN=1                  Print the command without running inference.
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "${root}"
+
+python_bin="${PYTHON:-python}"
+if [ -z "${CUDA_HOME:-}" ]; then
+  python_path="$(command -v "${python_bin}" 2>/dev/null || true)"
+  if [ -n "${python_path}" ]; then
+    python_prefix="$(cd "$(dirname "${python_path}")/.." && pwd)"
+    if [ -x "${python_prefix}/bin/nvcc" ]; then
+      export CUDA_HOME="${python_prefix}"
+      export CUDA_PATH="${CUDA_HOME}"
+    fi
+  fi
+fi
+if [ -n "${CUDA_HOME:-}" ] && [ -x "${CUDA_HOME}/bin/nvcc" ]; then
+  export CUDA_PATH="${CUDA_PATH:-${CUDA_HOME}}"
+  export CUDACXX="${CUDACXX:-${CUDA_HOME}/bin/nvcc}"
+  export PATH="${CUDA_HOME}/bin:${PATH}"
+  export LD_LIBRARY_PATH="${CUDA_HOME}/lib:${CUDA_HOME}/targets/x86_64-linux/lib:${LD_LIBRARY_PATH:-}"
+fi
 
 model_root="${MODEL_ROOT:-${root}/../../models}"
 model_size="${MODEL_SIZE:-1.3B}"
@@ -25,10 +46,15 @@ prompt_id="${PROMPT_ID:-1}"
 prompt_file="${PROMPT_FILE:-data/example/${prompt_id}/prompt.txt}"
 gpu_id="${GPU:-${GPUS:-${CUDA_VISIBLE_DEVICES:-0}}}"
 gpu_id="${gpu_id%%[ ,]*}"
+default_cpu_offload=0
+default_mem_save=0
 
-export TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-${root}/.triton_cache}"
+cache_root="${SVOO_CACHE_ROOT:-${root}/.triton_cache}"
+export TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-${cache_root}}"
+export TORCHINDUCTOR_CACHE_DIR="${TORCHINDUCTOR_CACHE_DIR:-${cache_root}/torchinductor}"
+export FLASHINFER_WORKSPACE_BASE="${FLASHINFER_WORKSPACE_BASE:-${cache_root}/flashinfer}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
-mkdir -p "${TRITON_CACHE_DIR}"
+mkdir -p "${TRITON_CACHE_DIR}" "${TORCHINDUCTOR_CACHE_DIR}" "${FLASHINFER_WORKSPACE_BASE}"
 
 case "${model_size}" in
   1.3B|1.3b|wan21_1_3b|wan21_t2v_1_3b)
@@ -47,7 +73,7 @@ case "${model_size}" in
     min_kc_ratio=0.10
     kmeans_iter_init=2
     kmeans_iter_step=2
-    start_reuse_step=10
+    start_reuse_step=11
     reuse_interval=20
     dynamic_min_kc_ratio_min=0.03
     dynamic_min_kc_ratio_max=0.10
@@ -69,8 +95,8 @@ case "${model_size}" in
     kmeans_iter_init=2
     kmeans_iter_step=2
     start_reuse_step=11
-    reuse_interval=40
-    dynamic_min_kc_ratio_min=0.05
+    reuse_interval=20
+    dynamic_min_kc_ratio_min=0.03
     dynamic_min_kc_ratio_max=0.10
     ;;
   A14B|a14b|wan22|wan22_t2v_a14b)
@@ -78,6 +104,7 @@ case "${model_size}" in
     model_dir="Wan2.2-T2V-A14B-Diffusers"
     output_dir="${OUTPUT_DIR:-result/wan2.2-14B/t2v/svoo}"
     sparsity_csv="sparsity_profiles/sparsity_wan22_A14B_t2v.csv"
+    default_mem_save=1
 
     # SVOO config. min_kc_ratio is the fallback; dynamic_min_kc_ratio_* clips CSV values.
     num_inference_steps=40
@@ -85,13 +112,13 @@ case "${model_size}" in
     first_layers_fp=0.03
     num_q_centroids=256
     num_k_centroids=1024
-    top_p_kmeans=0.95
+    top_p_kmeans=0.90
     min_kc_ratio=0.10
     kmeans_iter_init=2
     kmeans_iter_step=2
     start_reuse_step=9
-    reuse_interval=40
-    dynamic_min_kc_ratio_min=0.05
+    reuse_interval=20
+    dynamic_min_kc_ratio_min=0.03
     dynamic_min_kc_ratio_max=0.10
     ;;
   *)
@@ -115,12 +142,13 @@ width="${WIDTH:-1280}"
 num_frames="${NUM_FRAMES:-81}"
 seed="${SEED:-0}"
 run_id="${RUN_ID:-0}"
-cpu_offload="${CPU_OFFLOAD:-${WAN_CPU_OFFLOAD:-0}}"
+cpu_offload="${CPU_OFFLOAD:-${WAN_CPU_OFFLOAD:-${default_cpu_offload}}}"
+export SVOO_ENABLE_MEM_SAVE="${SVOO_ENABLE_MEM_SAVE:-${default_mem_save}}"
 output_file="${OUTPUT_FILE:-${output_dir}/${prompt_id}-${run_id}.mp4}"
 logging_file="${LOGGING_FILE:-${output_dir}/${prompt_id}-${run_id}.jsonl}"
 
 cmd=(
-  "${PYTHON:-python}"
+  "${python_bin}"
   wan_t2v_inference.py
   --model_id "${model_id}"
   --prompt "${prompt}"
@@ -150,6 +178,7 @@ cmd=(
 cmd+=("$@")
 
 echo "GPU=${gpu_id} MODEL=${model_id}"
+echo "CPU_OFFLOAD=${cpu_offload} SVOO_ENABLE_MEM_SAVE=${SVOO_ENABLE_MEM_SAVE}"
 echo "PROMPT=${prompt_file}"
 echo "OUTPUT=${output_file}"
 [ "${DRY_RUN:-0}" = "1" ] && { printf 'Command:'; printf ' %q' "${cmd[@]}"; printf '\n'; exit 0; }

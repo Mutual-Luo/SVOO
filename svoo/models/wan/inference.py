@@ -77,6 +77,8 @@ def replace_wan_attention(
 
     dtype = torch.bfloat16  # Or pipe.dtype
     device = pipe.device
+    num_attention_heads = pipe.transformer.config.num_attention_heads
+    attention_head_dim = pipe.transformer.config.attention_head_dim
 
     replace_sparse_forward(cpu_offload)  # Assuming this is a general patch; if not, it might need to be conditional.
 
@@ -109,8 +111,8 @@ def replace_wan_attention(
         if attention_backend == "flexattn":
             block_mask = prepare_flexattention(
                 1,
-                pipe.transformer.num_attention_heads,
-                pipe.transformer.attention_head_dim,
+                num_attention_heads,
+                attention_head_dim,
                 dtype,
                 device,
                 context_length,
@@ -126,8 +128,8 @@ def replace_wan_attention(
         elif attention_backend == "flashinfer":
             temporal_mask_metadata = prepare_flashinfer_attention(
                 1,
-                pipe.transformer.num_attention_heads,
-                pipe.transformer.attention_head_dim,
+                num_attention_heads,
+                attention_head_dim,
                 dtype,
                 device,
                 context_length,
@@ -193,8 +195,8 @@ def replace_wan_attention(
         if attention_backend == "flexattn":
             block_mask = prepare_flexattention(
                 1,
-                pipe.transformer.num_attention_heads,
-                pipe.transformer.attention_head_dim,
+                num_attention_heads,
+                attention_head_dim,
                 dtype,
                 device,
                 context_length,
@@ -210,8 +212,8 @@ def replace_wan_attention(
         elif attention_backend == "flashinfer":
             temporal_mask_metadata = prepare_flashinfer_attention(
                 1,
-                pipe.transformer.num_attention_heads,
-                pipe.transformer.attention_head_dim,
+                num_attention_heads,
+                attention_head_dim,
                 dtype,
                 device,
                 context_length,
@@ -370,24 +372,25 @@ def replace_wan_attention(
             norm_dim = (
                 _attn1.norm_q.weight.shape[-1]
                 if getattr(_attn1, "norm_q", None) is not None
-                else pipe.transformer.num_attention_heads * pipe.transformer.attention_head_dim
+                else num_attention_heads * attention_head_dim
             )
         except (AttributeError, IndexError):
-            norm_dim = pipe.transformer.num_attention_heads * pipe.transformer.attention_head_dim
+            norm_dim = num_attention_heads * attention_head_dim
 
         warmup_svoo_triton_kernels(
             model_name="Wan",
-            num_head=pipe.transformer.num_attention_heads,
-            head_dim=pipe.transformer.attention_head_dim,
+            num_head=num_attention_heads,
+            head_dim=attention_head_dim,
             hidden_dim=norm_dim,
             seq_len=num_frame_patches * frame_patches_one_frame,
             num_q_centroids=num_q_centroids,
             num_k_centroids=num_k_centroids,
             dtype=dtype,
             device=device,
-            cfg_values=(1, 2),
+            cfg_values=(1,),
             include_rmsnorm=True,
             include_wan_block_kernels=True,
+            include_flashinfer_sparse=os.environ.get("SVG_SPARSE_ATTN_BACKEND", "flashinfer").lower() != "triton",
         )
 
     elif pattern == "dense":

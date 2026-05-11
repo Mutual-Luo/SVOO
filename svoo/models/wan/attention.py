@@ -566,7 +566,7 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
     buckets_init = False
     
     use_svoo = True  # Open-source release defaults to SVOO.
-    enable_mem_save = bool(int(os.environ.get("SVG_ENABLE_MEM_SAVE", "0")))
+    enable_mem_save = bool(int(os.environ.get("SVOO_ENABLE_MEM_SAVE", "0")))
     
     start_reuse_step = None
     reuse_interval = 1

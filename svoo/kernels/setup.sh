@@ -15,13 +15,50 @@ if [[ -z "${CUDAHOSTCXX:-}" && -n "${CXX:-}" ]]; then
     export CUDAHOSTCXX="$CXX"
 fi
 
+detect_torch_cuda_arch_list() {
+    if [[ -n "${TORCH_CUDA_ARCH_LIST:-}" ]]; then
+        printf '%s\n' "$TORCH_CUDA_ARCH_LIST"
+        return
+    fi
+
+    if ! command -v nvidia-smi >/dev/null 2>&1; then
+        echo "nvidia-smi was not found. Set TORCH_CUDA_ARCH_LIST manually before building SVOO kernels." >&2
+        exit 1
+    fi
+
+    local arch_list
+    arch_list="$(
+        nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null |
+            awk '
+                {
+                    gsub(/[[:space:]]/, "", $0)
+                    if ($0 ~ /^[0-9]+[.][0-9]+$/ && !seen[$0]++) {
+                        if (out != "") {
+                            out = out ";"
+                        }
+                        out = out $0
+                    }
+                }
+                END { print out }
+            '
+    )"
+
+    if [[ -z "$arch_list" ]]; then
+        echo "Could not auto-detect CUDA compute capability. Set TORCH_CUDA_ARCH_LIST manually before building SVOO kernels." >&2
+        exit 1
+    fi
+
+    printf '%s\n' "$arch_list"
+}
+
 export CUDA_HOME=$CONDA_ENV_PATH
 export CUDA_PATH=$CONDA_ENV_PATH
 export PATH=$CUDA_HOME/bin:$PATH
-export LD_LIBRARY_PATH=$CUDA_HOME/lib:${LD_LIBRARY_PATH:-}
+export LD_LIBRARY_PATH=$CUDA_HOME/lib:$CUDA_HOME/targets/x86_64-linux/lib:${LD_LIBRARY_PATH:-}
 
-# Build only the Hopper target used by the project.
-export TORCH_CUDA_ARCH_LIST="9.0"
+export TORCH_CUDA_ARCH_LIST
+TORCH_CUDA_ARCH_LIST="$(detect_torch_cuda_arch_list)"
+printf 'Using TORCH_CUDA_ARCH_LIST=%s\n' "$TORCH_CUDA_ARCH_LIST"
 
 NVJITLINK_PATH=$(python -c "import site; print(site.getsitepackages()[0] + '/nvidia/nvjitlink/lib')")
 if [[ -d "$NVJITLINK_PATH" ]]; then
@@ -45,7 +82,7 @@ cd build
 cmake_args=(
     ..
     -DCMAKE_PREFIX_PATH="$(python -c 'import torch;print(torch.utils.cmake_prefix_path)')"
-    -DTORCH_CUDA_ARCH_LIST="9.0"
+    -DTORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}"
     -DCAFFE2_USE_CUDA=ON
     -DUSE_CUDA=ON
 )

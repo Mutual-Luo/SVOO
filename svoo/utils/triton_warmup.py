@@ -1,5 +1,6 @@
 import os
 import time
+from contextlib import contextmanager
 from typing import Iterable
 
 import torch
@@ -10,6 +11,27 @@ def _env_flag(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.lower() not in ("0", "", "false", "no", "off")
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _warmup_mode() -> str:
+    return os.environ.get("SVOO_TRITON_WARMUP_MODE", "compile").strip().lower()
+
+
+def _effective_seq_len(seq_len: int) -> int:
+    mode = _warmup_mode()
+    if mode in ("full", "profile", "benchmark"):
+        return int(seq_len)
+    return min(int(seq_len), max(1, _env_int("SVOO_TRITON_WARMUP_SEQ_LEN", 4096)))
 
 
 def _as_cuda_device(device) -> torch.device:
@@ -29,6 +51,20 @@ def _sync(device: torch.device):
 def _cleanup(device: torch.device):
     if device.type == "cuda":
         torch.cuda.empty_cache()
+
+
+@contextmanager
+def _preserve_rng_state(device: torch.device):
+    cpu_state = torch.random.get_rng_state()
+    cuda_state = None
+    if device.type == "cuda":
+        cuda_state = torch.cuda.get_rng_state(device)
+    try:
+        yield
+    finally:
+        torch.random.set_rng_state(cpu_state)
+        if cuda_state is not None:
+            torch.cuda.set_rng_state(cuda_state, device)
 
 
 def _valid_centroids(num_q_centroids, num_k_centroids) -> bool:
@@ -136,6 +172,48 @@ def _warmup_cocluster(
         del q, k, _
 
 
+def _split_sizes(total: int, blocks: int, num_head: int, device: torch.device) -> torch.Tensor:
+    base = total // blocks
+    remainder = total % blocks
+    sizes = torch.full((1, num_head, blocks), base, dtype=torch.long, device=device)
+    if remainder:
+        sizes[:, :, :remainder] += 1
+    return sizes
+
+
+def _warmup_flashinfer_sparse(
+    num_head: int,
+    head_dim: int,
+    dtype: torch.dtype,
+    device: torch.device,
+):
+    if not _env_flag("SVOO_FLASHINFER_WARMUP", default=True):
+        return
+
+    from ..co_clustering import dynamic_block_sparse_fwd_flashinfer
+
+    seq_len = max(16, _env_int("SVOO_FLASHINFER_WARMUP_SEQ_LEN", 128))
+    num_blocks = max(1, min(seq_len, _env_int("SVOO_FLASHINFER_WARMUP_BLOCKS", 4)))
+
+    q = torch.zeros(1, num_head, seq_len, head_dim, dtype=dtype, device=device)
+    k = torch.zeros_like(q)
+    v = torch.zeros_like(q)
+    block_mask = torch.ones(1, num_head, num_blocks, num_blocks, dtype=torch.bool, device=device)
+    block_sizes = _split_sizes(seq_len, num_blocks, num_head, device)
+
+    _ = dynamic_block_sparse_fwd_flashinfer(
+        q,
+        k,
+        v,
+        block_mask,
+        block_sizes,
+        block_sizes,
+        is_cpu=False,
+    )
+    _sync(device)
+    del q, k, v, block_mask, block_sizes, _
+
+
 def warmup_svoo_triton_kernels(
     *,
     model_name: str,
@@ -151,8 +229,15 @@ def warmup_svoo_triton_kernels(
     inverse_seq_len: int | None = None,
     include_rmsnorm: bool = False,
     include_wan_block_kernels: bool = False,
+    include_flashinfer_sparse: bool = False,
 ):
-    """Precompile Triton kernels used by SVOO before the tqdm inference loop."""
+    """Precompile SVOO kernels before the tqdm inference loop.
+
+    The default `compile` mode intentionally uses a smaller sequence length.
+    SVOO kernels avoid specialising on sequence length, so this keeps compile
+    cost outside the progress bar without running a full-resolution clustering
+    pass before every inference.
+    """
     if not _env_flag("SVOO_TRITON_WARMUP", default=True):
         return
 
@@ -162,36 +247,67 @@ def warmup_svoo_triton_kernels(
 
     strict = _env_flag("SVOO_TRITON_WARMUP_STRICT", default=False)
     start = time.time()
-    print(f"[SVOO] Precompiling Triton kernels for {model_name}...", flush=True)
+    warmup_seq_len = _effective_seq_len(seq_len)
+    warmup_inverse_seq_len = None
+    if inverse_seq_len is not None:
+        warmup_inverse_seq_len = (
+            inverse_seq_len
+            if _warmup_mode() in ("full", "profile", "benchmark")
+            else min(int(inverse_seq_len), warmup_seq_len + max(0, int(inverse_seq_len) - int(seq_len)))
+        )
+    print(
+        f"[SVOO] Precompiling kernels for {model_name} "
+        f"(mode={_warmup_mode()}, seq_len={warmup_seq_len}/{seq_len})...",
+        flush=True,
+    )
 
     try:
-        if include_wan_block_kernels:
-            _warmup_wan_block_kernels(hidden_dim, dtype, device)
+        with _preserve_rng_state(device):
+            if include_wan_block_kernels:
+                print(f"[SVOO]   warmup block kernels: hidden_dim={hidden_dim}", flush=True)
+                _warmup_wan_block_kernels(hidden_dim, dtype, device)
 
-        if include_rmsnorm:
-            _warmup_rmsnorm(hidden_dim, seq_len, dtype, device)
+            if include_rmsnorm:
+                print(f"[SVOO]   warmup rmsnorm: seq_len={warmup_seq_len}, hidden_dim={hidden_dim}", flush=True)
+                _warmup_rmsnorm(hidden_dim, warmup_seq_len, dtype, device)
 
-        _warmup_permute(num_head, head_dim, seq_len, dtype, device, inverse_seq_len)
+            print(f"[SVOO]   warmup permute: heads={num_head}, seq_len={warmup_seq_len}, head_dim={head_dim}", flush=True)
+            _warmup_permute(num_head, head_dim, warmup_seq_len, dtype, device, warmup_inverse_seq_len)
 
-        if _valid_centroids(num_q_centroids, num_k_centroids):
-            _warmup_cocluster(
-                num_head,
-                head_dim,
-                seq_len,
-                num_q_centroids,
-                num_k_centroids,
-                dtype,
-                device,
-                cfg_values,
-            )
+            if _valid_centroids(num_q_centroids, num_k_centroids):
+                cfg_text = ",".join(str(int(cfg)) for cfg in cfg_values)
+                print(
+                    "[SVOO]   warmup co-cluster: "
+                    f"cfg={cfg_text}, heads={num_head}, seq_len={warmup_seq_len}, "
+                    f"head_dim={head_dim}, q_centroids={num_q_centroids}, "
+                    f"k_centroids={num_k_centroids}",
+                    flush=True,
+                )
+                _warmup_cocluster(
+                    num_head,
+                    head_dim,
+                    warmup_seq_len,
+                    num_q_centroids,
+                    num_k_centroids,
+                    dtype,
+                    device,
+                    cfg_values,
+                )
+
+            if include_flashinfer_sparse:
+                print(
+                    f"[SVOO]   warmup FlashInfer sparse: heads={num_head}, head_dim={head_dim}",
+                    flush=True,
+                )
+                _warmup_flashinfer_sparse(num_head, head_dim, dtype, device)
 
         _cleanup(device)
         elapsed = time.time() - start
-        print(f"[SVOO] Triton warmup finished in {elapsed:.1f}s.", flush=True)
+        print(f"[SVOO] Kernel warmup finished in {elapsed:.1f}s.", flush=True)
     except Exception as exc:
         _cleanup(device)
         message = (
-            "[SVOO] Triton warmup failed; inference may compile kernels inside "
+            "[SVOO] Kernel warmup failed; inference may compile kernels inside "
             f"the progress bar. Set SVOO_TRITON_WARMUP_STRICT=1 to fail fast. "
             f"{type(exc).__name__}: {exc}"
         )

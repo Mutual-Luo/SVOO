@@ -1,0 +1,110 @@
+# SVOO
+
+Training-free sparse attention for video generation with offline sparsity profiles and online QK co-clustering.
+
+SVOO supports Wan and HunyuanVideo 1.0 text-to-video and image-to-video inference. The release scripts are tuned for single-GPU 720p inference on 80GB-class NVIDIA GPUs.
+
+## Highlights
+
+- Wan T2V and I2V support, including Wan2.1 and Wan2.2 A14B.
+- HunyuanVideo 1.0 T2V and I2V support.
+- Canonical sparsity profiles are provided in `sparsity_profiles/`.
+- Lightweight kernel warmup runs before the inference progress bar.
+- Fixed empirical Triton configs are used by default; local tuning is optional.
+- CPU offload is disabled by default.
+
+## Installation
+
+Prerequisites: Linux, Conda, Git, and an NVIDIA GPU with CUDA support.
+
+```bash
+git clone <repo-url>
+cd svoo
+bash scripts/build_env.sh
+conda activate svoo
+```
+
+`scripts/build_env.sh` creates or reuses a Conda environment, installs CUDA/PyTorch build dependencies, initializes submodules, installs SVOO, installs FlashAttention and FlashInfer, and builds the local CUDA extension. CUDA compute capabilities are detected from the visible NVIDIA GPUs by default.
+
+| Override | Default | Description |
+| --- | --- | --- |
+| `CONDA_ENV_NAME` | `svoo` | Conda environment name |
+| `PYTHON_VERSION` | `3.12.9` | Python version |
+| `CUDA_VERSION` | `12.6.0` | Conda CUDA toolkit version |
+| `MAX_JOBS` | `nproc` | Parallel build jobs |
+| `TORCH_CUDA_ARCH_LIST` | Auto-detected | Override CUDA architectures for cross-build hosts |
+
+FlashAttention, FlashInfer, and the SVOO CUDA extension are required runtime components and are always installed or built by the setup script.
+
+## Model Weights
+
+Download all supported public models:
+
+```bash
+MODEL_ROOT=/path/to/models bash scripts/download_models.sh
+```
+
+Inference scripts first look for local weights under `MODEL_ROOT`. A single model can be passed directly with `MODEL_PATH`.
+
+```bash
+MODEL_PATH=/path/to/model GPUS=0 bash scripts/inference/wan/wan_t2v_720p_svoo.sh
+```
+
+## Inference
+
+| Task | Command |
+| --- | --- |
+| Wan T2V | `GPUS=0 MODEL_SIZE=1.3B bash scripts/inference/wan/wan_t2v_720p_svoo.sh` |
+| Wan I2V | `GPUS=0 MODEL_SIZE=14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh` |
+| Wan2.2 T2V A14B | `GPUS=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_t2v_720p_svoo.sh` |
+| Wan2.2 I2V A14B | `GPUS=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh` |
+| HunyuanVideo T2V | `GPUS=0 bash scripts/inference/hunyuan10/hunyuan10_t2v_720p_svoo.sh` |
+| HunyuanVideo I2V | `GPUS=0 bash scripts/inference/hunyuan10/hunyuan10_i2v_720p_svoo.sh` |
+
+Demo inputs use this layout:
+
+```text
+data/example/<id>/prompt.txt
+data/example/<id>/image.jpg
+```
+
+Outputs are written to `result/` unless `OUTPUT_DIR` or `OUTPUT_FILE` is set.
+
+### Common Options
+
+| Variable | Description |
+| --- | --- |
+| `PROMPT_ID=1` | Use `data/example/1/` |
+| `PROMPT_FILE=/path/to/prompt.txt` | Override the prompt file |
+| `IMAGE_FILE=/path/to/image.jpg` | Override the I2V input image |
+| `OUTPUT_DIR=/path/to/results` | Override output directory |
+| `OUTPUT_FILE=/path/to/video.mp4` | Override exact output file |
+| `SEED=0` | Generation seed |
+| `DRY_RUN=1` | Print the command without running inference |
+
+### Memory And Timing
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `CPU_OFFLOAD` | `0` | Set `1` only when extra VRAM headroom is required |
+| `SVOO_ENABLE_MEM_SAVE` | Model-specific | Releases large SVOO intermediates earlier |
+| `SVOO_TRITON_WARMUP` | `1` | Required kernel warmup before the progress bar |
+| `SVOO_TRITON_TUNE` | `fixed` | Set `auto` to search the fastest Triton config for the current GPU |
+| `SVOO_CACHE_ROOT` | `.triton_cache` | Compiler and FlashInfer cache root |
+
+Warmup preserves RNG state and is designed not to affect generated videos. Compilation happens before the inference progress bar.
+
+## Offline Sparsity Profiles
+
+Canonical profiles are already included. To regenerate them:
+
+```bash
+GPUS=0 bash scripts/offline/generate_sparsity_profiles.sh wan21_t2v_14b
+GPUS="0 1 2 3" bash scripts/offline/generate_sparsity_profiles.sh all
+```
+
+Profiling prompts live in `data/profile_data/prompt.txt`. See `scripts/offline/README.md` for profiling options and output layout.
+
+## Notes
+
+Generated videos, model downloads, compiler caches, and kernel builds are ignored by Git.

@@ -2,7 +2,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MODEL_ROOT="${MODEL_ROOT:-/home/dataset-assist-0/luojy/models}"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+MODEL_ROOT="${MODEL_ROOT:-${PROJECT_ROOT}/../models}"
 RETRY_SLEEP="${RETRY_SLEEP:-30}"
 
 case "${RETRY_SLEEP}" in

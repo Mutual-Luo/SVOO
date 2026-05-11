@@ -58,3 +58,6 @@ sparsity_profiles_optimized/
 
 ## Codex
 AGENTS.md
+.agents/
+.vscode/
+.codex/

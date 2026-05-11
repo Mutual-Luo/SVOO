@@ -11,7 +11,7 @@ def _permute_kernel(
     X_ptr,
     IDX_ptr,
     Y_ptr,
-    S: tl.constexpr,
+    S,
     D: tl.constexpr,
     BLOCK_S: tl.constexpr,
 ):
@@ -40,7 +40,7 @@ def _inverse_permute_kernel(
     X_ptr,
     IDX_ptr,
     Y_ptr,
-    S: tl.constexpr,
+    S,
     D: tl.constexpr,
     BLOCK_S: tl.constexpr,
 ):
