@@ -170,26 +170,6 @@ def _require_flashinfer_sparse():
             f"Original error: {e}"
         ) from e
 
-def density_calculation(dynamic_map, q_cluster_sizes, k_cluster_sizes):
-    """
-    Calculate the density of the dynamic map. Currently only batch size = 1 and head size = 1 are supported.
-
-    Input:
-        dynamic_map: [cfg, num_heads, qc_num, kc_num]
-        q_cluster_sizes: [cfg, num_heads, qc_num]
-        k_cluster_sizes: [cfg, num_heads, kc_num]
-    """
-    cfg, num_heads, qc_num, kc_num = dynamic_map.shape
-
-    # Calculate the block size of each block
-    clustered_block_size = q_cluster_sizes[:, :, :, None] * k_cluster_sizes[:, :, None, :]
-    masked_block_size = clustered_block_size * dynamic_map
-
-    # Calculate the density of each block
-    density = torch.sum(masked_block_size, dim=(2, 3)) / torch.sum(clustered_block_size, dim=(2, 3))
-    return density
-
-
 # Chunk-wise centroid update for sorted cluster IDs.
 
 

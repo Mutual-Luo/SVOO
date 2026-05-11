@@ -29,7 +29,6 @@ if __name__ == "__main__":
     parser.add_argument("--height", type=int, default=None, help="Target video height (overrides auto-computed height when set together with --width)")
     parser.add_argument("--width", type=int, default=None, help="Target video width (overrides auto-computed width when set together with --height)")
     parser.add_argument("--output_file", type=str, default="output.mp4", help="Output video file name")
-    parser.add_argument("--logging_file", type=str, default=None, help="Path to the logging file.")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for generation")
     parser.add_argument("--skip_existing", action="store_true", help="Skip generating existing output files")
 
@@ -154,7 +153,6 @@ if __name__ == "__main__":
         num_k_centroids=args.num_k_centroids,
         top_p_kmeans=args.top_p_kmeans,
         min_kc_ratio=args.min_kc_ratio,
-        logging_file=args.logging_file,
         kmeans_iter_init=args.kmeans_iter_init,
         kmeans_iter_step=args.kmeans_iter_step,
         zero_step_kmeans_init=args.zero_step_kmeans_init,

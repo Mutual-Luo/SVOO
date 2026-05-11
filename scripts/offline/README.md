@@ -56,8 +56,8 @@ MODEL_ROOT=/home/dataset-assist-0/luojy/models  # looks for MODEL_ROOT/<HF repo 
 OFFLINE_PROFILE_ROOT=sparsity_profiles
 SPARSITY_THRESHOLD=0.95
 SPARSITY_BATCH_SIZE=0      # memory chunk size; 0 auto-selects
-RESUME_PROFILE=1           # continue from existing raw logs
-RUN_INFERENCE=0            # merge existing raw logs only
+RESUME_PROFILE=1           # continue from existing raw sparsity files
+RUN_INFERENCE=0            # merge existing raw sparsity files only
 ```
 
 ## Outputs
@@ -66,7 +66,6 @@ RUN_INFERENCE=0            # merge existing raw logs only
 sparsity_profiles/sparsity_*.csv
 sparsity_profiles/runs/<model_key>/runner.log
 sparsity_profiles/runs/<model_key>/raw/attention_sparsity-*-th*-q*.txt
-sparsity_profiles/runs/<model_key>/logs/*.jsonl
 sparsity_profiles/runs/<model_key>/videos/*.mp4
 ```
 

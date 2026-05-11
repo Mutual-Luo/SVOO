@@ -1,5 +1,3 @@
-import os
-
 import torch
 
 from .attention import (
@@ -48,7 +46,6 @@ def replace_hunyuan10_attention(
     num_k_centroids=None,
     top_p_kmeans=None,
     min_kc_ratio=0,
-    logging_file=None,
     kmeans_iter_init=0,
     kmeans_iter_step=0,
     zero_step_kmeans_init=False,
@@ -155,18 +152,10 @@ def replace_hunyuan10_attention(
 
         # Pass K-means specific parameters to the processor's constructor or set them as attributes
         # The processor itself will handle the K-means logic internally
-
-        # Make dir and clear the logging file
-        if logging_file is not None:
-            os.makedirs(os.path.dirname(logging_file), exist_ok=True)
-            with open(logging_file, "w") as f:
-                f.write("")
-
         AttnModule = Hunyuan_SAPAttn_Processor2_0
 
         AttnModule.first_layers_fp = first_layers_fp
         AttnModule.first_times_fp = first_times_fp
-        AttnModule.logging_file = logging_file
 
         # These might be needed by the processor if it has to adapt to sequence dimensions
         AttnModule.prompt_length = prompt_length

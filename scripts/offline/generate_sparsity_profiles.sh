@@ -49,7 +49,7 @@ Common overrides:
 Output:
   <OFFLINE_PROFILE_ROOT>/sparsity_*.csv
   <OFFLINE_PROFILE_ROOT>/runs/<model_key>/runner.log
-  <OFFLINE_PROFILE_ROOT>/runs/<model_key>/{raw,logs,videos}/
+  <OFFLINE_PROFILE_ROOT>/runs/<model_key>/{raw,videos}/
 EOF
 }
 
@@ -154,7 +154,7 @@ find_profile_image() {
 }
 
 build_inference_cmd() {
-  local prompt="$1" image_file="$2" output_file="$3" log_file="$4" sparsity_file="$5"
+  local prompt="$1" image_file="$2" output_file="$3" sparsity_file="$4"
   local common_args=(
     --model_id "${MODEL_ID_RESOLVED}"
     --prompt "${prompt}"
@@ -171,7 +171,6 @@ build_inference_cmd() {
     --sparsity_threshold "${SPARSITY_THRESHOLD}"
     --sparsity_start_step 1
     --output_file "${output_file}"
-    --logging_file "${log_file}"
   )
 
   case "${TASK}" in
@@ -196,7 +195,6 @@ run_prompt() {
   local gpu="$1" prompt_id="$2" prompt="$3"
   local image_file=""
   local raw_file="${RAW_DIR}/attention_sparsity-${prompt_id}-th${THRESHOLD_TAG}-${QUERY_SAMPLE_TAG}.txt"
-  local log_file="${LOG_DIR}/${prompt_id}.jsonl"
   local video_file="${VIDEO_DIR}/${prompt_id}.mp4"
 
   if [[ "${TASK}" == *i2v ]] && [ "${RUN_INFERENCE}" = "1" ]; then
@@ -210,7 +208,7 @@ run_prompt() {
   [ "${RUN_INFERENCE}" = "1" ] && [ "${RESUME_PROFILE}" != "1" ] && rm -f "${raw_file}"
 
   if [ "${RUN_INFERENCE}" = "1" ]; then
-    build_inference_cmd "${prompt}" "${image_file}" "${video_file}" "${log_file}" "${raw_file}"
+    build_inference_cmd "${prompt}" "${image_file}" "${video_file}" "${raw_file}"
     run_on_gpu "${gpu}" "${CMD[@]}"
   fi
 }
@@ -244,7 +242,6 @@ run_model() {
   local run_dir="${profile_root}/runs/${MODEL_KEY}"
   local output_csv="${profile_root}/${OUTPUT_CSV_NAME}"
   RAW_DIR="${run_dir}/raw"
-  LOG_DIR="${run_dir}/logs"
   VIDEO_DIR="${run_dir}/videos"
 
   PROFILE_PROMPT_FILE="${PROFILE_PROMPT_FILE:-data/profile_data/prompt.txt}"
@@ -281,7 +278,7 @@ run_model() {
     QUERY_SAMPLE_TAG="qall"
   fi
 
-  mkdir -p "$(dirname "${output_csv}")" "${RAW_DIR}" "${LOG_DIR}" "${VIDEO_DIR}" "${TRITON_CACHE_DIR}" "${FLASHINFER_WORKSPACE_BASE}"
+  mkdir -p "$(dirname "${output_csv}")" "${RAW_DIR}" "${VIDEO_DIR}" "${TRITON_CACHE_DIR}" "${FLASHINFER_WORKSPACE_BASE}"
 
   echo "=== ${MODEL_KEY} ==="
   echo "MODEL_ID=${MODEL_ID_RESOLVED}"

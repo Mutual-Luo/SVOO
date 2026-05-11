@@ -1,4 +1,3 @@
-import json
 import os
 from typing import Optional, Tuple
 
@@ -14,7 +13,6 @@ from ...kernels.triton.permute import apply_inverse_permutation_triton, permute_
 from ...utils.flashinfer_sparse import make_variable_block_sparse_attention_wrapper
 from ...co_clustering import (
     batch_kmeans_Euclid,
-    density_calculation,
     dynamic_block_sparse_fwd_flashinfer,
     identify_dynamic_map,
 )
@@ -775,8 +773,6 @@ class Hunyuan_SAPAttn_Processor2_0(Hunyuan_SVGAttn_Processor2_0):
     kmeans_iter_step = 0
     zero_step_kmeans_init = False
 
-    logging_file = None
-
     # SVOO / reuse / dynamic min_kc_ratio
     use_svoo = True
     enable_mem_save = bool(int(os.environ.get("SVOO_ENABLE_MEM_SAVE", "1")))
@@ -1030,8 +1026,7 @@ class Hunyuan_SAPAttn_Processor2_0(Hunyuan_SVGAttn_Processor2_0):
         key_video = key[:, :, :video_length, :].contiguous()
         value_video = value[:, :, :video_length, :].contiguous()
 
-        attn_output = torch.zeros_like(query)
-        return query_video, key_video, value_video, attn_output
+        return query_video, key_video, value_video
 
     def attention_core_logic(self, query, key, value, timestep, layer_idx, cu_max_seqlens):
         cfg, num_heads, seq_len, dim = query.size()
@@ -1074,7 +1069,7 @@ class Hunyuan_SAPAttn_Processor2_0(Hunyuan_SVGAttn_Processor2_0):
             unprompt_length = context_length - prompt_length
 
             # 1. Video part
-            query_video, key_video, value_video, attn_output = self.prepare_video_part(query, key, value)
+            query_video, key_video, value_video = self.prepare_video_part(query, key, value)
 
             # Core logic
             q_perm, k_perm, v_perm, dyn_map, qc_sz_s, kc_sz_s, q_sorted_indices = self.semantic_aware_permutation(
@@ -1110,24 +1105,6 @@ class Hunyuan_SAPAttn_Processor2_0(Hunyuan_SVGAttn_Processor2_0):
             attn_output = apply_inverse_permutation_triton(output_permuted, q_sorted_indices, dim=2)
             if self.enable_mem_save:
                 del output_permuted
-
-            # Save time, layer, density information to logging file
-            if self.logging_file is not None:
-                # Create log entry
-                densities = density_calculation(dyn_map, qc_sz_s, kc_sz_s)
-
-                avg_density = densities.mean().item()
-                log_entry = {
-                    "timestep": timestep[0].item(),
-                    "layer": layer_idx,
-                    "avg_density": avg_density,
-                    "density": densities.tolist(),
-                }
-
-
-                # Append to log file
-                with open(self.logging_file, "a") as f:
-                    f.write(json.dumps(log_entry) + "\n")
 
             return attn_output.reshape(cfg, num_heads, seq_len, dim)
 

@@ -98,7 +98,6 @@ run_id="${RUN_ID:-0}"
 cpu_offload="${CPU_OFFLOAD:-${HUNYUAN10_CPU_OFFLOAD:-0}}"
 export SVOO_ENABLE_MEM_SAVE="${SVOO_ENABLE_MEM_SAVE:-${default_mem_save}}"
 output_file="${OUTPUT_FILE:-${output_dir}/${prompt_id}-${run_id}.mp4}"
-logging_file="${LOGGING_FILE:-${output_dir}/${prompt_id}-${run_id}.jsonl}"
 
 cmd=(
   "${python_bin}"
@@ -125,7 +124,6 @@ cmd=(
   --dynamic_min_kc_ratio_min "${dynamic_min_kc_ratio_min}"
   --dynamic_min_kc_ratio_max "${dynamic_min_kc_ratio_max}"
   --output_file "${output_file}"
-  --logging_file "${logging_file}"
 )
 
 if [ -n "${HEIGHT:-}${WIDTH:-}" ]; then

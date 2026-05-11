@@ -32,7 +32,6 @@ def replace_wan_attention(
     num_k_centroids=None,
     top_p_kmeans=None,
     min_kc_ratio=0,
-    logging_file=None,
     kmeans_iter_init=0,
     kmeans_iter_step=0,
     zero_step_kmeans_init=False,
@@ -257,17 +256,10 @@ def replace_wan_attention(
         # Pass K-means specific parameters to the processor's constructor or set them as attributes
         # The processor itself will handle the K-means logic internally
 
-        # Make dir and clear the logging file
-        if logging_file is not None:
-            os.makedirs(os.path.dirname(logging_file), exist_ok=True)
-            with open(logging_file, "w") as f:
-                f.write("")
-
         AttnModule = WanAttn_SAPAttn_Processor
 
         AttnModule.first_layers_fp = first_layers_fp
         AttnModule.first_times_fp = first_times_fp
-        AttnModule.logging_file = logging_file
 
         # These might be needed by the processor if it has to adapt to sequence dimensions
         AttnModule.context_length = context_length
@@ -342,7 +334,6 @@ def replace_wan_attention(
             if hasattr(m.attn1, "processor"):
                 current_processor = AttnModule(layer_idx=layer_idx)
                 current_processor.num_layers = num_layers
-                current_processor.logging_file = logging_file
                 # Ensure each instance has sparsity measurement attributes set
                 current_processor.measure_attention_sparsity = measure_attention_sparsity
                 current_processor.sparsity_output_file = sparsity_output_file
@@ -357,7 +348,6 @@ def replace_wan_attention(
                 if hasattr(m.attn1, "processor"):
                     current_processor = AttnModule(layer_idx=layer_idx)
                     current_processor.num_layers = num_layers
-                    current_processor.logging_file = logging_file
                     # Ensure each instance has sparsity measurement attributes set
                     current_processor.measure_attention_sparsity = measure_attention_sparsity
                     current_processor.sparsity_output_file = sparsity_output_file
@@ -423,7 +413,6 @@ def replace_wan_attention(
             if hasattr(m.attn1, "processor"):
                 current_processor = AttnModule(layer_idx=layer_idx)
                 current_processor.num_layers = num_layers
-                current_processor.logging_file = logging_file
                 current_processor.measure_attention_sparsity = measure_attention_sparsity
                 current_processor.sparsity_output_file = sparsity_output_file
                 current_processor.sparsity_batch_size = sparsity_batch_size
@@ -436,7 +425,6 @@ def replace_wan_attention(
                 if hasattr(m, "attn1") and hasattr(m.attn1, "processor"):
                     current_processor = AttnModule(layer_idx=layer_idx)
                     current_processor.num_layers = num_layers
-                    current_processor.logging_file = logging_file
                     current_processor.measure_attention_sparsity = measure_attention_sparsity
                     current_processor.sparsity_output_file = sparsity_output_file
                     current_processor.sparsity_batch_size = sparsity_batch_size

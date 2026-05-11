@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 import time
@@ -20,7 +19,6 @@ from ...kernels.triton.rmsnorm import triton_rmsnorm_forward
 from ...co_clustering import (
     batch_kmeans_Euclid,
     co_cluster_tokens,
-    density_calculation,
     dynamic_block_sparse_fwd_flashinfer,
     identify_dynamic_map,
 )
@@ -544,8 +542,6 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
     kmeans_iter_init = 0
     kmeans_iter_step = 0
     zero_step_kmeans_init = False
-
-    logging_file = None
 
     use_global_constraints = False
     lambda_schedule = "linear"
@@ -1117,34 +1113,6 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
                 attn_output = apply_inverse_permutation_triton(output_permuted, q_sorted_indices, dim=2)
                 if self.enable_mem_save:
                     del output_permuted
-
-                # Save time, layer, density information to logging file
-                if self.logging_file is not None:
-                    # 4. Calculate density
-                    densities = density_calculation(dyn_map, qc_sz_s, kc_sz_s)
-
-                    avg_density = densities.mean().item()
-                    if timestep is not None:
-                        if isinstance(timestep, torch.Tensor):
-                            if timestep.numel() > 0:
-                                timestep_value = timestep[0].item()
-                            else:
-                                timestep_value = 0
-                        else:
-                            timestep_value = timestep
-                    else:
-                        timestep_value = 0
-                        
-                    log_entry = {
-                        "timestep": timestep_value,
-                        "layer": self.layer_idx,
-                        "avg_density": avg_density,
-                        "density": densities.tolist(),
-                    }
-
-
-                    with open(self.logging_file, "a") as f:
-                        f.write(json.dumps(log_entry) + "\n")
 
                 attn_output = attn_output.transpose(1, 2).flatten(2, 3)
                 return attn_output
