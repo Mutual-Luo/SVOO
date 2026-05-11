@@ -71,13 +71,13 @@ first_times_fp=0.1
 first_layers_fp=0.03
 num_q_centroids=256
 num_k_centroids=1024
-top_p_kmeans=0.90
+top_p_kmeans=0.88
 min_kc_ratio=0.10
 kmeans_iter_init=2
 kmeans_iter_step=2
 start_reuse_step=6
 reuse_interval=50
-dynamic_min_kc_ratio_min=0.03
+dynamic_min_kc_ratio_min=0.05
 dynamic_min_kc_ratio_max=0.10
 
 local_model="${model_root}/${model_dir}"
