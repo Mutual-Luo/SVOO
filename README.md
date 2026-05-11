@@ -109,6 +109,10 @@ Outputs are written to `result/` unless `OUTPUT_DIR` or `OUTPUT_FILE` is set.
 
 Warmup preserves RNG state and is designed not to affect generated videos. Compilation happens before the inference progress bar.
 
+## Acknowledgements
+
+We thank the authors of [Sparse-VideoGen](https://github.com/svg-project/Sparse-VideoGen) for their excellent open-source project and inspiring work on training-free sparse attention for video generation, including **SVG1** and **SVG2**.
+
 ## Notes
 
 Generated videos, model downloads, compiler caches, and kernel builds are ignored by Git.
