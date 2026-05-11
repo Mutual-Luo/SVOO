@@ -102,17 +102,10 @@ Outputs are written to `result/` unless `OUTPUT_DIR` or `OUTPUT_FILE` is set.
 | Variable | Default | Description |
 | --- | --- | --- |
 | `CPU_OFFLOAD` | `0` | Set `1` to reduce GPU memory usage with CPU offload; this can be slower |
-| `SVOO_ENABLE_MEM_SAVE` | `1` | Reduces GPU memory usage by releasing large SVOO intermediates earlier |
-| `SVOO_TRITON_WARMUP` | `1` | Required kernel warmup before the progress bar |
 | `SVOO_TRITON_TUNE` | `fixed` | Set `auto` to search the fastest Triton config for the current GPU |
-| `SVOO_CACHE_ROOT` | `.triton_cache` | Compiler and FlashInfer cache root |
 
 Warmup preserves RNG state and is designed not to affect generated videos. Compilation happens before the inference progress bar.
 
 ## Acknowledgements
 
 We thank the authors of [Sparse-VideoGen](https://github.com/svg-project/Sparse-VideoGen) for their excellent open-source project and inspiring work on training-free sparse attention for video generation, including **SVG1** and **SVG2**.
-
-## Notes
-
-Generated videos, model downloads, compiler caches, and kernel builds are ignored by Git.
