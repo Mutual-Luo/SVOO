@@ -261,8 +261,7 @@ def warmup_svoo_triton_kernels(
         flush=True,
     )
     print(
-        "[SVOO] First run may spend extra time compiling kernels. "
-        "This happens before the inference progress bar and is not counted in generation speed.",
+        "[SVOO] First run may spend extra time compiling kernels.",
         flush=True,
     )
 

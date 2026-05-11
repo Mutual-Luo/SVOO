@@ -42,17 +42,19 @@ FlashAttention, FlashInfer, and the SVOO CUDA extension are required runtime com
 
 ## Model Weights
 
+Choose one directory to store model weights, then reuse it for all commands:
+
+```bash
+export MODEL_ROOT=/path/to/models
+```
+
 Download all supported public models:
 
 ```bash
 MODEL_ROOT=/path/to/models bash scripts/download_models.sh
 ```
 
-Inference scripts first look for local weights under `MODEL_ROOT`. A single model can be passed directly with `MODEL_PATH`.
-
-```bash
-MODEL_PATH=/path/to/model GPUS=0 bash scripts/inference/wan/wan_t2v_720p_svoo.sh
-```
+Inference scripts look for model folders under `MODEL_ROOT`. If a model is stored somewhere else, pass the exact directory with `MODEL_PATH=/path/to/model`.
 
 ## Offline Sparsity Profiles
 
@@ -69,12 +71,14 @@ Profiling prompts live in `data/profile_data/prompt.txt`. See `scripts/offline/R
 
 | Task | Command |
 | --- | --- |
-| Wan T2V | `GPUS=0 MODEL_SIZE=1.3B bash scripts/inference/wan/wan_t2v_720p_svoo.sh` |
-| Wan I2V | `GPUS=0 MODEL_SIZE=14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh` |
-| Wan2.2 T2V A14B | `GPUS=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_t2v_720p_svoo.sh` |
-| Wan2.2 I2V A14B | `GPUS=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh` |
-| HunyuanVideo T2V | `GPUS=0 bash scripts/inference/hunyuan10/hunyuan10_t2v_720p_svoo.sh` |
-| HunyuanVideo I2V | `GPUS=0 bash scripts/inference/hunyuan10/hunyuan10_i2v_720p_svoo.sh` |
+| Wan T2V | `MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=1.3B bash scripts/inference/wan/wan_t2v_720p_svoo.sh` |
+| Wan I2V | `MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh` |
+| Wan2.2 T2V A14B | `MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_t2v_720p_svoo.sh` |
+| Wan2.2 I2V A14B | `MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh` |
+| HunyuanVideo T2V | `MODEL_ROOT=/path/to/models GPUS=0 bash scripts/inference/hunyuan10/hunyuan10_t2v_720p_svoo.sh` |
+| HunyuanVideo I2V | `MODEL_ROOT=/path/to/models GPUS=0 bash scripts/inference/hunyuan10/hunyuan10_i2v_720p_svoo.sh` |
+
+To run on a specific GPU, use either `GPUS=7` or `CUDA_VISIBLE_DEVICES=7`.
 
 Demo inputs use this layout:
 
@@ -89,6 +93,9 @@ Outputs are written to `result/` unless `OUTPUT_DIR` or `OUTPUT_FILE` is set.
 
 | Variable | Description |
 | --- | --- |
+| `MODEL_ROOT=/path/to/models` | Parent directory containing model folders |
+| `MODEL_PATH=/path/to/model` | Exact model directory; overrides `MODEL_ROOT` lookup |
+| `GPUS=0` | GPU id used by the launch script |
 | `PROMPT_ID=1` | Use `data/example/1/` |
 | `PROMPT_FILE=/path/to/prompt.txt` | Override the prompt file |
 | `IMAGE_FILE=/path/to/image.jpg` | Override the I2V input image |
