@@ -83,7 +83,7 @@ if __name__ == "__main__":
             exit(0)
 
     # Load model.
-    pipe = WanImageToVideoPipeline.from_pretrained(args.model_id, dtype=torch.bfloat16)
+    pipe = WanImageToVideoPipeline.from_pretrained(args.model_id, torch_dtype=torch.bfloat16)
 
     pipe.to("cuda")
     

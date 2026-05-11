@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     # Load model.
     model_id = args.model_id
-    pipe = WanPipeline.from_pretrained(model_id, dtype=torch.bfloat16)
+    pipe = WanPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16)
     pipe.to("cuda")
     if hasattr(pipe, 'text_encoder') and pipe.text_encoder is not None:
         pipe.text_encoder.to("cuda:0")

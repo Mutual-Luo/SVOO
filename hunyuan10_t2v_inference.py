@@ -79,7 +79,7 @@ if __name__ == "__main__":
             exit(0)
 
     # Load model.
-    model_kwargs = {"dtype": torch.bfloat16}
+    model_kwargs = {"torch_dtype": torch.bfloat16}
     if args.model_id == "tencent/HunyuanVideo":
         model_kwargs["revision"] = "refs/pr/18"
 

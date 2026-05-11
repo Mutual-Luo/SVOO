@@ -80,11 +80,11 @@ if __name__ == "__main__":
     configure_cuda_linalg_backend()
 
     # Load model.
-    transformer = HunyuanVideoTransformer3DModel.from_pretrained(args.model_id, subfolder="transformer", dtype=torch.bfloat16)
+    transformer = HunyuanVideoTransformer3DModel.from_pretrained(args.model_id, subfolder="transformer", torch_dtype=torch.bfloat16)
     flow_shift = 7.0
     scheduler = FlowMatchEulerDiscreteScheduler(shift=flow_shift)
     pipe = Hunyuan10VideoImageToVideoPipelineWithCPUOffload.from_pretrained(
-        args.model_id, transformer=transformer, scheduler=scheduler, dtype=torch.bfloat16
+        args.model_id, transformer=transformer, scheduler=scheduler, torch_dtype=torch.bfloat16
     )
     pipe.vae.enable_tiling()
     pipe.to("cuda")
