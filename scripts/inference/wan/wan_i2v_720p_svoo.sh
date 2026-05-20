@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Example:
-#   MODEL_ROOT=~/models GPUS=7 RUN_ID=1 MODEL_SIZE=14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh --top_p_kmeans 1.0
-#   MODEL_ROOT=~/models GPUS=0 RUN_ID=0 MODEL_SIZE=14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh
+#   MODEL_ROOT=~/models GPUS=7 RUN_ID=1 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh --top_p_kmeans 1.0 # Dense
+#   MODEL_ROOT=~/models GPUS=0 RUN_ID=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh                    # Sparse SVOO
 #
 # User-facing overrides:
 #   MODEL_SIZE=14B|A14B        Select Wan2.1 14B or Wan2.2 A14B.
