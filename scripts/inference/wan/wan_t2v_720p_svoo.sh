@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Example:
-#   GPUS=0 MODEL_SIZE=14B bash scripts/inference/wan/wan_t2v_720p_svoo.sh
+#   MODEL_ROOT=~/models GPUS=7 MODEL_SIZE=A14B RUN_ID=0 bash scripts/inference/wan/wan_t2v_720p_svoo.sh
+#   MODEL_ROOT=~/models GPUS=0 MODEL_SIZE=A14B RUN_ID=1 bash scripts/inference/wan/wan_t2v_720p_svoo.sh --top_p_kmeans 1.0 # Dense
 #
 # User-facing overrides:
 #   MODEL_SIZE=1.3B|14B|A14B  Select Wan2.1 1.3B, Wan2.1 14B, or Wan2.2 A14B.
@@ -78,8 +79,8 @@ case "${model_size}" in
     kmeans_iter_step=2
     start_reuse_step=11
     reuse_interval=20
-    dynamic_min_kc_ratio_min=0.05
-    dynamic_min_kc_ratio_max=0.10
+    dynamic_min_kc_ratio_min=0.15
+    dynamic_min_kc_ratio_max=0.20
     ;;
   14B|14b|wan21_14b|wan21_t2v_14b)
     model_id="Wan-AI/Wan2.1-T2V-14B-Diffusers"
@@ -98,9 +99,9 @@ case "${model_size}" in
     kmeans_iter_init=2
     kmeans_iter_step=2
     start_reuse_step=11
-    reuse_interval=20
-    dynamic_min_kc_ratio_min=0.05
-    dynamic_min_kc_ratio_max=0.10
+    reuse_interval=40
+    dynamic_min_kc_ratio_min=0.15
+    dynamic_min_kc_ratio_max=0.20
     ;;
   A14B|a14b|wan22|wan22_t2v_a14b)
     model_id="Wan-AI/Wan2.2-T2V-A14B-Diffusers"
@@ -120,9 +121,9 @@ case "${model_size}" in
     kmeans_iter_init=2
     kmeans_iter_step=2
     start_reuse_step=9
-    reuse_interval=20
-    dynamic_min_kc_ratio_min=0.05
-    dynamic_min_kc_ratio_max=0.10
+    reuse_interval=40
+    dynamic_min_kc_ratio_min=0.20
+    dynamic_min_kc_ratio_max=0.22
     ;;
   *)
     echo "Unknown MODEL_SIZE: ${model_size}" >&2
