@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Example:
-#   GPUS=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh
+#   MODEL_ROOT=~/models GPUS=7 RUN_ID=1 MODEL_SIZE=14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh --top_p_kmeans 1.0
+#   MODEL_ROOT=~/models GPUS=0 RUN_ID=0 MODEL_SIZE=14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh
 #
 # User-facing overrides:
 #   MODEL_SIZE=14B|A14B        Select Wan2.1 14B or Wan2.2 A14B.
@@ -13,11 +14,11 @@ set -euo pipefail
 #   IMAGE_FILE=/path/image.jpg Override the input image. IMAGE_PATH also works.
 #   OUTPUT_DIR=/path/dir       Override the result directory.
 #   OUTPUT_FILE=/path/file.mp4 Override the exact output video path.
-#   SVOO_CACHE_ROOT=/path/dir   Override compiler cache root.
-#   TRITON_CACHE_DIR=/path/dir  Override Triton JIT cache.
+#   SVOO_CACHE_ROOT=/path/dir  Override compiler cache root.
+#   TRITON_CACHE_DIR=/path/dir Override Triton JIT cache.
 #   SVOO_TRITON_WARMUP=1       Compile SVOO Triton kernels before the progress bar.
 #   SVOO_TRITON_TUNE=auto      Search the fastest Triton config for the current GPU.
-#   SVOO_ENABLE_MEM_SAVE=0|1    Reduce GPU memory usage by releasing large SVOO intermediates earlier.
+#   SVOO_ENABLE_MEM_SAVE=0|1   Reduce GPU memory usage by releasing large SVOO intermediates earlier.
 #   DRY_RUN=1                  Print the command without running inference.
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -80,8 +81,8 @@ case "${model_size}" in
     kmeans_iter_step=2
     start_reuse_step=9
     reuse_interval=20
-    dynamic_min_kc_ratio_min=0.05
-    dynamic_min_kc_ratio_max=0.10
+    dynamic_min_kc_ratio_min=0.10
+    dynamic_min_kc_ratio_max=0.15
     ;;
   A14B|a14b|wan22|wan22_i2v_a14b)
     model_id="Wan-AI/Wan2.2-I2V-A14B-Diffusers"
@@ -101,9 +102,9 @@ case "${model_size}" in
     kmeans_iter_init=2
     kmeans_iter_step=2
     start_reuse_step=9
-    reuse_interval=20
-    dynamic_min_kc_ratio_min=0.05
-    dynamic_min_kc_ratio_max=0.10
+    reuse_interval=40
+    dynamic_min_kc_ratio_min=0.20
+    dynamic_min_kc_ratio_max=0.25
     ;;
   *)
     echo "Unknown MODEL_SIZE: ${model_size}" >&2
