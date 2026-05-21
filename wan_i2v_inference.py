@@ -8,7 +8,6 @@ import torch
 from diffusers import WanImageToVideoPipeline
 from diffusers.utils import export_to_video, load_image
 
-from svoo.models.wan.inference import replace_wan_attention
 from svoo.utils.data import load_prompt_or_image
 from svoo.utils.runtime import configure_cuda_linalg_backend
 from svoo.utils.seed import seed_everything
@@ -34,10 +33,10 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--pattern",
-        type=str,
-        default="SVOO",
-        choices=["SVOO"],
-        help="Run SVOO.",
+        type=str.lower,
+        default="svoo",
+        choices=["svoo", "dense"],
+        help="Attention pattern to run.",
     )
     parser.add_argument("--first_layers_fp", type=float, default=0.3, help="The percentage of timesteps to leave in FP")
     parser.add_argument("--first_times_fp", type=float, default=0.03, help="The percentage of layers to leave in FP")
@@ -139,64 +138,77 @@ if __name__ == "__main__":
         args.negative_prompt = "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards"
 
 
-    # Install SVOO attention.
-    replace_wan_attention(
-        pipe,
-        args.height,
-        args.width,
-        args.num_frames,
-        num_inference_steps=args.num_inference_steps,
-        first_layers_fp=args.first_layers_fp,
-        first_times_fp=args.first_times_fp,
-        pattern="SAP",
-        num_q_centroids=args.num_q_centroids,
-        num_k_centroids=args.num_k_centroids,
-        top_p_kmeans=args.top_p_kmeans,
-        min_kc_ratio=args.min_kc_ratio,
-        kmeans_iter_init=args.kmeans_iter_init,
-        kmeans_iter_step=args.kmeans_iter_step,
-        zero_step_kmeans_init=args.zero_step_kmeans_init,
-        use_svoo=True,
-        start_reuse_step=args.start_reuse_step,
-        reuse_interval=args.reuse_interval,
-        use_dynamic_min_kc_ratio=args.use_dynamic_min_kc_ratio,
-        sparsity_csv_path=args.sparsity_csv_path if args.use_dynamic_min_kc_ratio else None,
-        dynamic_min_kc_ratio_min=args.dynamic_min_kc_ratio_min,
-        dynamic_min_kc_ratio_max=args.dynamic_min_kc_ratio_max,
-        measure_attention_sparsity=bool(args.measure_attention_sparsity),
-        sparsity_output_file=args.sparsity_output_file,
-        sparsity_batch_size=args.sparsity_batch_size,
-        sparsity_query_samples=args.sparsity_query_samples,
-        sparsity_threshold=args.sparsity_threshold,
-        sparsity_start_step=args.sparsity_start_step,
-        cpu_offload=bool(args.cpu_offload),
-    )
+    callback_kwargs = {}
+
+    use_fast_kernel = os.environ.get("ENABLE_FAST_KERNEL", "0") == "1"
+    install_svoo_wan_forward = args.pattern == "svoo" or (args.pattern == "dense" and use_fast_kernel)
+
+    if install_svoo_wan_forward:
+        from svoo.models.wan.inference import replace_wan_attention
+
+        install_pattern = "SAP" if args.pattern == "svoo" else "dense"
+
+        # Install SVOO attention. For dense, install only when fast Wan kernels are explicitly enabled.
+        replace_wan_attention(
+            pipe,
+            args.height,
+            args.width,
+            args.num_frames,
+            num_inference_steps=args.num_inference_steps,
+            first_layers_fp=args.first_layers_fp,
+            first_times_fp=args.first_times_fp,
+            pattern=install_pattern,
+            num_q_centroids=args.num_q_centroids,
+            num_k_centroids=args.num_k_centroids,
+            top_p_kmeans=args.top_p_kmeans,
+            min_kc_ratio=args.min_kc_ratio,
+            kmeans_iter_init=args.kmeans_iter_init,
+            kmeans_iter_step=args.kmeans_iter_step,
+            zero_step_kmeans_init=args.zero_step_kmeans_init,
+            use_svoo=True,
+            start_reuse_step=args.start_reuse_step,
+            reuse_interval=args.reuse_interval,
+            use_dynamic_min_kc_ratio=args.use_dynamic_min_kc_ratio,
+            sparsity_csv_path=args.sparsity_csv_path if args.use_dynamic_min_kc_ratio else None,
+            dynamic_min_kc_ratio_min=args.dynamic_min_kc_ratio_min,
+            dynamic_min_kc_ratio_max=args.dynamic_min_kc_ratio_max,
+            measure_attention_sparsity=bool(args.measure_attention_sparsity),
+            sparsity_output_file=args.sparsity_output_file,
+            sparsity_batch_size=args.sparsity_batch_size,
+            sparsity_query_samples=args.sparsity_query_samples,
+            sparsity_threshold=args.sparsity_threshold,
+            sparsity_start_step=args.sparsity_start_step,
+            cpu_offload=bool(args.cpu_offload),
+        )
+
+        if args.pattern == "svoo":
+            # Pipeline callbacks expose completed steps; SVOO attention needs the next step index.
+            def _set_attention_step(step_1_based: int):
+                def _apply_blocks(blocks):
+                    for blk in blocks:
+                        setattr(blk, "_step_from_callback", step_1_based)
+                        for attn_name in ("attn1", "attn2"):
+                            attn = getattr(blk, attn_name, None)
+                            proc = getattr(attn, "processor", None) if attn is not None else None
+                            if proc is not None:
+                                setattr(proc, "_step_from_callback", step_1_based)
+
+                _apply_blocks(pipe.transformer.blocks)
+                if hasattr(pipe, "transformer_2"):
+                    if pipe.transformer_2 is not None:
+                        _apply_blocks(pipe.transformer_2.blocks)
+
+            # Start from the first denoising step.
+            _set_attention_step(1)
+
+            def _on_step_end(pipe_obj, step_index: int, timestep: int, callback_kwargs: dict):
+                # Set the step used by the next denoising iteration.
+                _set_attention_step(step_index + 2)
+                return callback_kwargs
+
+            callback_kwargs["callback_on_step_end"] = _on_step_end
 
     # Generate video.
-    # Pipeline callbacks expose completed steps; attention needs the next step index.
-    def _set_attention_step(step_1_based: int):
-        def _apply_blocks(blocks):
-            for blk in blocks:
-                setattr(blk, "_step_from_callback", step_1_based)
-                for attn_name in ("attn1", "attn2"):
-                    attn = getattr(blk, attn_name, None)
-                    proc = getattr(attn, "processor", None) if attn is not None else None
-                    if proc is not None:
-                        setattr(proc, "_step_from_callback", step_1_based)
-
-        _apply_blocks(pipe.transformer.blocks)
-        if hasattr(pipe, "transformer_2"):
-            if pipe.transformer_2 is not None:
-                _apply_blocks(pipe.transformer_2.blocks)
-
-    # Start from the first denoising step.
-    _set_attention_step(1)
-
-    def _on_step_end(pipe_obj, step_index: int, timestep: int, callback_kwargs: dict):
-        # Set the step used by the next denoising iteration.
-        _set_attention_step(step_index + 2)
-        return callback_kwargs
-
     if "2.2" in args.model_id:
         output = pipe(
             image=image,
@@ -208,7 +220,7 @@ if __name__ == "__main__":
             guidance_scale=3.5,
             guidance_scale_2=3.0,
             num_inference_steps=args.num_inference_steps,
-            callback_on_step_end=_on_step_end,
+            **callback_kwargs,
         ).frames[0]
     else:
         output = pipe(
@@ -220,7 +232,7 @@ if __name__ == "__main__":
             num_frames=args.num_frames,
             guidance_scale=5.0,
             num_inference_steps=args.num_inference_steps,
-            callback_on_step_end=_on_step_end,
+            **callback_kwargs,
         ).frames[0]
 
     # Ensure output directory exists.

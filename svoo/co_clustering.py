@@ -567,6 +567,9 @@ def identify_dynamic_map(
     kc_num = key_centroids.shape[2]
     device = query_centroids.device
 
+    if p >= 1.0:
+        return torch.ones(B, H, qc_num, kc_num, dtype=torch.bool, device=device)
+
     attn_scores = torch.matmul(query_centroids, key_centroids.transpose(-2, -1)) / (D**0.5)
     k_weights = k_cluster_sizes.unsqueeze(-2).float()
 
@@ -655,6 +658,9 @@ def identify_dynamic_map_global(
     B, H, qc_num, D = query_centroids.shape
     kc_num = key_centroids.shape[2]
     device = query_centroids.device
+
+    if p >= 1.0:
+        return torch.ones(B, H, qc_num, kc_num, dtype=torch.bool, device=device)
     
     attn_scores = torch.matmul(query_centroids, key_centroids.transpose(-2, -1)) / (D**0.5)
     k_weights = k_cluster_sizes.unsqueeze(-2).float()  # [B, H, 1, kc_num]

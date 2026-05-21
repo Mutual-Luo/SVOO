@@ -3,6 +3,7 @@ import os
 import torch
 
 from .attention import (
+    ENABLE_FAST_KERNEL,
     WanAttn_SAPAttn_Processor,
     WanAttn_SVGAttn_Processor2_0,
     prepare_flashinfer_attention,
@@ -66,8 +67,8 @@ def replace_wan_attention(
 ):
     if num_inference_steps is None:
         num_inference_steps = 50
-    if pattern != "SAP" or not use_svoo:
-        raise ValueError("Only SVOO is supported in this release.")
+    if pattern not in ("SAP", "dense") or not use_svoo:
+        raise ValueError("Only SVOO and dense diagnostic patterns are supported in this release.")
 
     context_length = 0  # This seems to be 0 for I2V in SVG
     num_frame_patches = 1 + num_frames // (pipe.vae_scale_factor_temporal * pipe.transformer.config.patch_size[0])
@@ -380,8 +381,8 @@ def replace_wan_attention(
             dtype=dtype,
             device=device,
             cfg_values=(1,),
-            include_rmsnorm=True,
-            include_wan_block_kernels=True,
+            include_rmsnorm=ENABLE_FAST_KERNEL,
+            include_wan_block_kernels=ENABLE_FAST_KERNEL,
             include_flashinfer_sparse=os.environ.get("SVG_SPARSE_ATTN_BACKEND", "flashinfer").lower() != "triton",
         )
 

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Example:
-#   MODEL_ROOT=~/models GPUS=7 RUN_ID=1 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh --top_p_kmeans 1.0 # Dense
-#   MODEL_ROOT=~/models GPUS=0 RUN_ID=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh                    # Sparse SVOO
+#   MODEL_ROOT=~/models GPUS=0 RUN_ID=4 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh --pattern dense      # Original dense
+#   MODEL_ROOT=~/models GPUS=0 RUN_ID=2 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh                      # Sparse SVOO
 #
 # User-facing overrides:
 #   MODEL_SIZE=14B|A14B        Select Wan2.1 14B or Wan2.2 A14B.
@@ -19,6 +19,7 @@ set -euo pipefail
 #   SVOO_TRITON_WARMUP=1       Compile SVOO Triton kernels before the progress bar.
 #   SVOO_TRITON_TUNE=auto      Search the fastest Triton config for the current GPU.
 #   SVOO_ENABLE_MEM_SAVE=0|1   Reduce GPU memory usage by releasing large SVOO intermediates earlier.
+#   ENABLE_FAST_KERNEL=0|1     Use Triton Wan norm/modulate kernels. Defaults to 0 to keep Wan norms on the original path.
 #   DRY_RUN=1                  Print the command without running inference.
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -167,9 +168,9 @@ fi
 cmd+=("$@")
 
 echo "GPU=${gpu_id} MODEL=${model_id}"
-echo "CPU_OFFLOAD=${cpu_offload} SVOO_ENABLE_MEM_SAVE=${SVOO_ENABLE_MEM_SAVE}"
+echo "CPU_OFFLOAD=${cpu_offload} SVOO_ENABLE_MEM_SAVE=${SVOO_ENABLE_MEM_SAVE} ENABLE_FAST_KERNEL=${ENABLE_FAST_KERNEL:-0}"
 echo "PROMPT=${prompt_file} IMAGE=${image_file}"
 echo "OUTPUT=${output_file}"
 [ "${DRY_RUN:-0}" = "1" ] && { printf 'Command:'; printf ' %q' "${cmd[@]}"; printf '\n'; exit 0; }
 
-CUDA_VISIBLE_DEVICES="${gpu_id}" ENABLE_FAST_KERNEL="${ENABLE_FAST_KERNEL:-1}" "${cmd[@]}"
+CUDA_VISIBLE_DEVICES="${gpu_id}" ENABLE_FAST_KERNEL="${ENABLE_FAST_KERNEL:-0}" "${cmd[@]}"

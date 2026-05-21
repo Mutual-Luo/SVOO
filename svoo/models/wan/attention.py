@@ -36,7 +36,7 @@ from .utils import (
     generate_temporal_head_mask_mod,
 )
 
-_ENABLE_FAST_KERNEL_ENV = os.environ.get("ENABLE_FAST_KERNEL", "1")
+_ENABLE_FAST_KERNEL_ENV = os.environ.get("ENABLE_FAST_KERNEL", "0")
 _should_use_fast_kernel = _ENABLE_FAST_KERNEL_ENV == "1"
 
 if _should_use_fast_kernel:
@@ -104,9 +104,17 @@ class WanAttn_SVGAttn_Processor2_0:
 
     def get_qk_norm(self, attn, query, key):
         if attn.norm_q is not None:
-            query = triton_rmsnorm_forward(query, attn.norm_q.weight, attn.norm_q.eps)
+            query = (
+                triton_rmsnorm_forward(query, attn.norm_q.weight, attn.norm_q.eps)
+                if ENABLE_FAST_KERNEL
+                else attn.norm_q(query)
+            )
         if attn.norm_k is not None:
-            key = triton_rmsnorm_forward(key, attn.norm_k.weight, attn.norm_k.eps)
+            key = (
+                triton_rmsnorm_forward(key, attn.norm_k.weight, attn.norm_k.eps)
+                if ENABLE_FAST_KERNEL
+                else attn.norm_k(key)
+            )
         return query, key
 
     def get_transpose_qkv(self, attn, query, key, value):
