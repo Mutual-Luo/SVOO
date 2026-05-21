@@ -3,8 +3,8 @@
 Calculate PSNR between two videos. Usage: 
 
 python data/example-output/calc_psnr.py \
-    ./result/wan2.2-14B/i2v/svoo/1-3.mp4 \
-    ./result/wan2.2-14B/i2v/svoo/1-4.mp4
+    ./data/example-output/0-wan22-i2v-svoo.mp4 \
+    ./data/example-output/0-wan22-i2v-dense.mp4
 """
 import argparse, subprocess, os, tempfile, math, numpy as np
 from PIL import Image
