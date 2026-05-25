@@ -1,9 +1,15 @@
+# SVOO-EAR integration notice: this file was modified to integrate the EAR
+# mechanism from SVG-EAR (https://github.com/dyxg/SVG-EAR/tree/pr/ear-wan22-support).
+# SVG-EAR is licensed under the Apache License, Version 2.0; see
+# https://github.com/dyxg/SVG-EAR/blob/pr/ear-wan22-support/LICENSE.txt.
+# Portions adapted from SVG-EAR retain their original license terms.
 import os
 
 import torch
 
 from .attention import (
     ENABLE_FAST_KERNEL,
+    WanAttn_EARAttn_Processor,
     WanAttn_SAPAttn_Processor,
     WanAttn_SVGAttn_Processor2_0,
     prepare_flashinfer_attention,
@@ -33,6 +39,7 @@ def replace_wan_attention(
     num_k_centroids=None,
     top_p_kmeans=None,
     min_kc_ratio=0,
+    ear_gamma=1.0,
     kmeans_iter_init=0,
     kmeans_iter_step=0,
     zero_step_kmeans_init=False,
@@ -67,8 +74,8 @@ def replace_wan_attention(
 ):
     if num_inference_steps is None:
         num_inference_steps = 50
-    if pattern not in ("SAP", "dense") or not use_svoo:
-        raise ValueError("Only SVOO and dense diagnostic patterns are supported in this release.")
+    if pattern not in ("SAP", "EAR", "dense") or not use_svoo:
+        raise ValueError("Only SVOO, EAR and dense diagnostic patterns are supported in this release.")
 
     context_length = 0  # This seems to be 0 for I2V in SVG
     num_frame_patches = 1 + num_frames // (pipe.vae_scale_factor_temporal * pipe.transformer.config.patch_size[0])
@@ -252,12 +259,12 @@ def replace_wan_attention(
             replace_blocks_attn(pipe.transformer_2, num_layers)
     
 
-    elif pattern == "SAP":
+    elif pattern in ("SAP", "EAR"):
 
         # Pass K-means specific parameters to the processor's constructor or set them as attributes
         # The processor itself will handle the K-means logic internally
 
-        AttnModule = WanAttn_SAPAttn_Processor
+        AttnModule = WanAttn_EARAttn_Processor if pattern == "EAR" else WanAttn_SAPAttn_Processor
 
         AttnModule.first_layers_fp = first_layers_fp
         AttnModule.first_times_fp = first_times_fp
@@ -271,6 +278,8 @@ def replace_wan_attention(
         AttnModule.num_k_centroids = num_k_centroids
         AttnModule.top_p_kmeans = top_p_kmeans
         AttnModule.min_kc_ratio = min_kc_ratio
+        AttnModule.ear_gamma = ear_gamma
+        AttnModule.use_ear = pattern == "EAR"
         AttnModule.num_layers = num_layers
         AttnModule.kmeans_iter_init = kmeans_iter_init
         AttnModule.kmeans_iter_step = kmeans_iter_step

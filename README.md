@@ -1,118 +1,61 @@
-<div align="center">
+# SVOO-EAR
 
-<h1>SVOO</h1>
+SVOO-EAR is a private integration branch that combines the **SVOO** sparse video-generation inference framework with the **EAR** error-aware routing mechanism from **SVG-EAR**. The goal of this branch is to support side-by-side evaluation of dense attention, SVOO sparse attention, and EAR-enhanced sparse attention on the Wan2.2-I2V-A14B inference path.
 
-<h2>Attention Sparsity is Input-Stable: Training-Free Sparse Attention for Video Generation via Offline Sparsity Profiling and Online QK Co-Clustering</h2>
+> This repository is derived from [SVOO](https://github.com/Mutual-Luo/SVOO) and incorporates EAR-related mechanisms adapted from [SVG-EAR](https://github.com/dyxg/SVG-EAR/tree/pr/ear-wan22-support). SVG-EAR is licensed under the Apache License, Version 2.0. Files modified for EAR integration carry an explicit SVG-EAR license reference in their headers.
 
-<h3>🎉 Accepted to <strong>ICML 2026 Main Track</strong></h3>
+## Core Advantages
 
-<p><strong>Jiayi Luo, Jiayu Chen, Jiankun Wang, Cong Wang, Hanxin Zhu, Qingyun Sun, Chen Gao, Zhibo Chen, Jianxin Li</strong></p>
+SVOO-EAR keeps the existing SVOO pipeline intact while adding an EAR mode for Wan image-to-video inference. SVOO contributes offline sparsity profiling, online QK co-clustering, and FlashInfer-backed dynamic block sparse attention. SVG-EAR contributes error-aware block selection and centroid compensation, which are intended to reduce quality loss when attention blocks are pruned aggressively.
 
-<p>
-  <a href="https://arxiv.org/pdf/2603.18636"><img alt="Paper" src="https://img.shields.io/badge/Paper-arXiv%3A2603.18636-b31b1b.svg"></a>
-  <a href="https://icml.cc/"><img alt="Conference" src="https://img.shields.io/badge/ICML-2026%20Main%20Track-4c6ef5.svg"></a>
-</p>
-
-</div>
-
-SVOO is a training-free sparse attention method for video generation with offline sparsity profiles and online QK co-clustering.
-
-## Installation
-
-Prerequisites: Linux, Conda, Git, and an NVIDIA GPU with CUDA support.
-
-```bash
-git clone https://github.com/Mutual-Luo/SVOO.git
-cd svoo
-bash scripts/build_env.sh
-conda activate svoo
-```
-
-`scripts/build_env.sh` creates or reuses a Conda environment, installs CUDA/PyTorch build dependencies, initializes submodules, installs SVOO, installs FlashAttention and FlashInfer, and builds the local CUDA extension. CUDA compute capabilities are detected from the visible NVIDIA GPUs by default.
-
-| Override | Default | Description |
+| Component | Contribution in SVOO-EAR | Benefit |
 | --- | --- | --- |
-| `CONDA_ENV_NAME` | `svoo` | Conda environment name |
-| `PYTHON_VERSION` | `3.12.9` | Python version |
-| `CUDA_VERSION` | `12.6.0` | Conda CUDA toolkit version |
-| `MAX_JOBS` | `nproc` | Parallel build jobs |
-| `TORCH_CUDA_ARCH_LIST` | Auto-detected | Override CUDA architectures for cross-build hosts |
+| SVOO offline profile | Reuses layer/head sparsity profiles and dynamic `min_kc_ratio` selection. | Keeps the original SVOO acceleration strategy and profiling workflow. |
+| SVOO online co-clustering | Preserves semantic-aware Q/K permutation and cluster-level block map construction. | Maintains the token grouping structure required by the existing sparse backend. |
+| SVG-EAR error-aware routing | Adds EAR block selection with value-statistics-based error estimation. | Prioritizes sparse blocks that are expected to have larger approximation error. |
+| SVG-EAR centroid compensation | Adds a pruned sparse forward path that compensates omitted blocks with cluster centroids. | Provides a quality-oriented alternative to the original SVOO sparse path. |
+| Wan2.2-I2V script support | Adds `PATTERN=dense|svoo|ear` and `EAR_GAMMA` to the 720p I2V script. | Enables direct quality and performance comparison using one script. |
 
-FlashAttention, FlashInfer, and the SVOO CUDA extension are required runtime components and are always installed or built by the setup script.
+## Main Runtime Modes
 
-## Model Weights
-
-Choose one directory to store model weights, then reuse it for all commands:
+The primary comparison entry point is `scripts/inference/wan/wan_i2v_720p_svoo.sh`. Set `PATTERN` to choose the attention path. The `ear` mode additionally accepts `EAR_GAMMA`, which controls the EAR error-estimation trade-off coefficient exposed by the Wan I2V inference script.
 
 ```bash
-export MODEL_ROOT=/path/to/models
+# Dense baseline
+MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=A14B PATTERN=dense bash scripts/inference/wan/wan_i2v_720p_svoo.sh
+
+# Original SVOO sparse path
+MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=A14B PATTERN=svoo bash scripts/inference/wan/wan_i2v_720p_svoo.sh
+
+# EAR-enhanced sparse path
+MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=A14B PATTERN=ear EAR_GAMMA=1.0 bash scripts/inference/wan/wan_i2v_720p_svoo.sh
 ```
 
-Download all supported public models:
+The script writes outputs into mode-specific result directories by default, making it easier to compare generated video quality across `dense`, `svoo`, and `ear` runs under the same prompt, seed, and model configuration.
 
-```bash
-MODEL_ROOT=/path/to/models bash scripts/download_models.sh
-```
+## Modified Areas
 
-Inference scripts look for model folders under `MODEL_ROOT`. If a model is stored somewhere else, pass the exact directory with `MODEL_PATH=/path/to/model`.
+The Wan2.2-I2V EAR integration primarily touches the attention selector, sparse attention backend, Wan attention processor registration, the top-level Wan I2V CLI, and the 720p inference script.
 
-## Offline Sparsity Profiles
-
-Canonical profiles are already included. To regenerate them:
-
-```bash
-GPUS=0 bash scripts/offline/generate_sparsity_profiles.sh wan21_t2v_14b
-GPUS="0 1 2 3" bash scripts/offline/generate_sparsity_profiles.sh all
-```
-
-Profiling prompts live in `data/profile_data/prompt.txt`. See `scripts/offline/README.md` for profiling options and output layout.
-
-## Inference
-
-Wan 14B/A14B and HunyuanVideo 720p inference require an 80GB GPU; Wan2.1-T2V-1.3B can run on 40GB GPUs.
-
-| Task | Command |
+| File | Purpose |
 | --- | --- |
-| Wan T2V | `MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=1.3B bash scripts/inference/wan/wan_t2v_720p_svoo.sh` |
-| Wan I2V | `MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh` |
-| Wan2.2 T2V A14B | `MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_t2v_720p_svoo.sh` |
-| Wan2.2 I2V A14B | `MODEL_ROOT=/path/to/models GPUS=0 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh` |
-| HunyuanVideo T2V | `MODEL_ROOT=/path/to/models GPUS=0 bash scripts/inference/hunyuan10/hunyuan10_t2v_720p_svoo.sh` |
-| HunyuanVideo I2V | `MODEL_ROOT=/path/to/models GPUS=0 bash scripts/inference/hunyuan10/hunyuan10_i2v_720p_svoo.sh` |
+| `svoo/co_clustering.py` | Adds EAR dynamic block selection and EAR pruned sparse FlashInfer forward support. |
+| `svoo/models/wan/attention.py` | Adds the Wan EAR attention processor and dispatches `pattern=ear` to EAR selector/backend. |
+| `svoo/models/wan/inference.py` | Registers EAR processors in the Wan replacement path and includes EAR in warmup conditions. |
+| `wan_i2v_inference.py` | Exposes `--pattern ear` and `--ear_gamma` from the Wan I2V command line. |
+| `scripts/inference/wan/wan_i2v_720p_svoo.sh` | Adds one-script comparison support for dense, SVOO, and EAR modes. |
 
-To run on a specific GPU, use either `GPUS=7` or `CUDA_VISIBLE_DEVICES=7`.
+## Validation Status
 
-Demo inputs use this layout:
+Before submission, the integration branch was checked with Python syntax compilation, shell syntax validation for the Wan I2V script, patch whitespace validation, and patch applicability validation. Full GPU video-generation validation still needs to be run in the target CUDA/PyTorch environment with the required Wan model weights, FlashInfer backend, and SVOO runtime dependencies.
 
-```text
-data/example/<id>/prompt.txt
-data/example/<id>/image.jpg
-```
+## Attribution and License Notes
 
-Outputs are written to `result/` unless `OUTPUT_DIR` or `OUTPUT_FILE` is set.
+SVOO-EAR is an integration work based on two upstream open-source projects:
 
-### Common Options
-
-| Variable | Description |
-| --- | --- |
-| `MODEL_ROOT=/path/to/models` | Parent directory containing model folders |
-| `MODEL_PATH=/path/to/model` | Exact model directory; overrides `MODEL_ROOT` lookup |
-| `GPUS=0` | GPU id used by the launch script |
-| `PROMPT_ID=1` | Use `data/example/1/` |
-| `PROMPT_FILE=/path/to/prompt.txt` | Override the prompt file |
-| `IMAGE_FILE=/path/to/image.jpg` | Override the I2V input image |
-| `OUTPUT_DIR=/path/to/results` | Override output directory |
-| `OUTPUT_FILE=/path/to/video.mp4` | Override exact output file |
-| `SEED=0` | Generation seed |
-| `DRY_RUN=1` | Print the command without running inference |
-
-### Memory And Timing
-
-| Variable | Default | Description |
+| Upstream project | URL | Role in this branch |
 | --- | --- | --- |
-| `CPU_OFFLOAD` | `0` | Set `1` to reduce GPU memory usage with CPU offload; this can be slower |
-| `SVOO_TRITON_TUNE` | `fixed` | Set `auto` to search the fastest Triton config for the current GPU |
+| SVOO | https://github.com/Mutual-Luo/SVOO | Base repository and sparse video-generation inference framework. |
+| SVG-EAR | https://github.com/dyxg/SVG-EAR/tree/pr/ear-wan22-support | Source of the EAR mechanism and related error-aware sparse attention ideas. |
 
-## Acknowledgements
-
-We thank the authors of [Sparse-VideoGen](https://github.com/svg-project/Sparse-VideoGen) for their excellent open-source project and inspiring work on training-free sparse attention for video generation, including **SVG1** and **SVG2**.
+SVG-EAR is distributed under the Apache License, Version 2.0. This branch adds explicit license-reference comments to the modified source files that contain or expose the EAR integration. Users should review the upstream licenses before redistributing this combined work.

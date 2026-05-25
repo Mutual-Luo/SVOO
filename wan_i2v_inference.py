@@ -1,3 +1,8 @@
+# SVOO-EAR integration notice: this file was modified to integrate the EAR
+# mechanism from SVG-EAR (https://github.com/dyxg/SVG-EAR/tree/pr/ear-wan22-support).
+# SVG-EAR is licensed under the Apache License, Version 2.0; see
+# https://github.com/dyxg/SVG-EAR/blob/pr/ear-wan22-support/LICENSE.txt.
+# Portions adapted from SVG-EAR retain their original license terms.
 import argparse
 import math
 import os
@@ -35,8 +40,8 @@ if __name__ == "__main__":
         "--pattern",
         type=str.lower,
         default="svoo",
-        choices=["svoo", "dense"],
-        help="Attention pattern to run.",
+        choices=["svoo", "ear", "dense"],
+        help="Attention pattern to run. Use 'ear' to enable SVG-EAR error-aware routing on top of SVOO clustering.",
     )
     parser.add_argument("--first_layers_fp", type=float, default=0.3, help="The percentage of timesteps to leave in FP")
     parser.add_argument("--first_times_fp", type=float, default=0.03, help="The percentage of layers to leave in FP")
@@ -46,6 +51,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_k_centroids", "--kc", type=int, default=200, help="Number of key centroids for KMEANS_BLOCK.")
     parser.add_argument("--top_p_kmeans", type=float, default=0.9, help="Top-p threshold for block selection in KMEANS_BLOCK.")
     parser.add_argument("--min_kc_ratio", type=float, default=0, help="At least this proportion of key blocks to keep per query block in KMEANS_BLOCK.")
+    parser.add_argument("--ear_gamma", type=float, default=1.0, help="EAR error-estimation trade-off coefficient. Only used when --pattern ear.")
     parser.add_argument("--kmeans_iter_init", type=int, default=0, help="Number of KMeans iterations for initialization in KMEANS_BLOCK.")
     parser.add_argument("--kmeans_iter_step", type=int, default=0, help="Number of KMeans iterations for other diffusion steps in KMEANS_BLOCK.")
     parser.add_argument("--zero_step_kmeans_init", action="store_true", help="Initialize the centroids for the first SVOO step, not after warmup.")
@@ -141,12 +147,12 @@ if __name__ == "__main__":
     callback_kwargs = {}
 
     use_fast_kernel = os.environ.get("ENABLE_FAST_KERNEL", "0") == "1"
-    install_svoo_wan_forward = args.pattern == "svoo" or (args.pattern == "dense" and use_fast_kernel)
+    install_svoo_wan_forward = args.pattern in ("svoo", "ear") or (args.pattern == "dense" and use_fast_kernel)
 
     if install_svoo_wan_forward:
         from svoo.models.wan.inference import replace_wan_attention
 
-        install_pattern = "SAP" if args.pattern == "svoo" else "dense"
+        install_pattern = "EAR" if args.pattern == "ear" else ("SAP" if args.pattern == "svoo" else "dense")
 
         # Install SVOO attention. For dense, install only when fast Wan kernels are explicitly enabled.
         replace_wan_attention(
@@ -162,6 +168,7 @@ if __name__ == "__main__":
             num_k_centroids=args.num_k_centroids,
             top_p_kmeans=args.top_p_kmeans,
             min_kc_ratio=args.min_kc_ratio,
+            ear_gamma=args.ear_gamma,
             kmeans_iter_init=args.kmeans_iter_init,
             kmeans_iter_step=args.kmeans_iter_step,
             zero_step_kmeans_init=args.zero_step_kmeans_init,
@@ -181,8 +188,8 @@ if __name__ == "__main__":
             cpu_offload=bool(args.cpu_offload),
         )
 
-        if args.pattern == "svoo":
-            # Pipeline callbacks expose completed steps; SVOO attention needs the next step index.
+        if args.pattern in ("svoo", "ear"):
+            # Pipeline callbacks expose completed steps; SVOO/EAR attention needs the next step index.
             def _set_attention_step(step_1_based: int):
                 def _apply_blocks(blocks):
                     for blk in blocks:

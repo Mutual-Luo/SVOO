@@ -1,3 +1,8 @@
+# SVOO-EAR integration notice: this file was modified to integrate the EAR
+# mechanism from SVG-EAR (https://github.com/dyxg/SVG-EAR/tree/pr/ear-wan22-support).
+# SVG-EAR is licensed under the Apache License, Version 2.0; see
+# https://github.com/dyxg/SVG-EAR/blob/pr/ear-wan22-support/LICENSE.txt.
+# Portions adapted from SVG-EAR retain their original license terms.
 import os
 import sys
 import time
@@ -20,7 +25,9 @@ from ...co_clustering import (
     batch_kmeans_Euclid,
     co_cluster_tokens,
     dynamic_block_sparse_fwd_flashinfer,
+    dynamic_block_sparse_prune_fwd_flashinfer,
     identify_dynamic_map,
+    identify_dynamic_map_estimated,
 )
 from ...sparsity import DEFAULT_SPARSITY_THRESHOLD, compute_exact_attention_sparsity, has_completed_sparsity_entry
 from .placement import (
@@ -570,6 +577,8 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
     buckets_init = False
     
     use_svoo = True  # Open-source release defaults to SVOO.
+    use_ear = False
+    ear_gamma = 1.0
     enable_mem_save = bool(int(os.environ.get("SVOO_ENABLE_MEM_SAVE", "1")))
     
     start_reuse_step = None
@@ -579,6 +588,26 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
     sparsity_lookup = None
     dynamic_min_kc_ratio_min = None
     dynamic_min_kc_ratio_max = None
+
+
+    @staticmethod
+    def _compute_value_centroids(tokens, labels, cluster_sizes, num_clusters):
+        """Compute value centroids from key labels for EAR centroid compensation."""
+        batch_heads, seq_len, dim = tokens.shape
+        centroids = torch.zeros(
+            batch_heads,
+            num_clusters,
+            dim,
+            device=tokens.device,
+            dtype=tokens.dtype,
+        )
+        centroids.scatter_add_(
+            1,
+            labels.to(torch.long).unsqueeze(-1).expand(-1, -1, dim),
+            tokens,
+        )
+        denom = cluster_sizes.clamp_min(1).to(tokens.dtype).unsqueeze(-1)
+        return centroids / denom
 
     def kmeans_init(self, query, key, layer_idx):
         cfg, num_heads, seq_len, dim = query.size()
@@ -937,13 +966,13 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
         
         # 2. Identify dynamic map or indices
         if self.use_routing_transformer_strategy:
+            if self.use_ear:
+                raise NotImplementedError("EAR is not wired for the routing-transformer hierarchical clustering path.")
             import torch.nn.functional as F
             
 
             num_q_clusters = self.mq1 * self.mq2
             num_k_clusters = self.mk1 * self.mk2
-            
-            from ...co_clustering import identify_dynamic_map
             
             q_cluster_sizes = qcluster_sizes.view(cfg, num_heads, num_q_clusters)
             k_cluster_sizes = kcluster_sizes.view(cfg, num_heads, num_k_clusters)
@@ -1002,25 +1031,58 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
                 diverse_top_p_k=self.diverse_top_p_k,
             )
         else:
-            from ...co_clustering import identify_dynamic_map
-            
             q_cluster_sizes = qcluster_sizes.view(cfg, num_heads, self.num_q_centroids)
             k_cluster_sizes = kcluster_sizes.view(cfg, num_heads, self.num_k_centroids)
-            
-            dynamic_map = identify_dynamic_map(
-                qcentroids.view(cfg, num_heads, self.num_q_centroids, dim),
-                kcentroids.view(cfg, num_heads, self.num_k_centroids, dim),
-                q_cluster_sizes,
-                k_cluster_sizes,
-                self.top_p_kmeans,
-                min_kc_ratio,
-            )
 
         # 3. Permute the query, key, value
         q_permuted, q_sorted_indices = permute_tensor_by_labels_triton(query, qlabels, dim=2)
         k_permuted, k_sorted_indices = permute_tensor_by_labels_triton(key, klabels, dim=2)
         v_permuted, v_sorted_indices = permute_tensor_by_labels_triton(
             value, klabels, dim=2, sorted_indices=k_sorted_indices
+        )
+
+        q_centroids_view = qcentroids.view(cfg, num_heads, self.num_q_centroids, dim)
+        k_centroids_view = kcentroids.view(cfg, num_heads, self.num_k_centroids, dim)
+
+        if self.use_ear:
+            v_centroids = self._compute_value_centroids(
+                value.view(cfg * num_heads, seq_len, dim),
+                klabels,
+                kcluster_sizes,
+                self.num_k_centroids,
+            ).view(cfg, num_heads, self.num_k_centroids, dim)
+            dynamic_map = identify_dynamic_map_estimated(
+                q_permuted,
+                k_permuted,
+                v_permuted,
+                q_cluster_sizes,
+                k_cluster_sizes,
+                q_centroids_view,
+                k_centroids_view,
+                v_centroids,
+                self.top_p_kmeans,
+                gamma=self.ear_gamma,
+                min_kc_ratio=min_kc_ratio,
+            )
+            return (
+                q_permuted,
+                k_permuted,
+                v_permuted,
+                dynamic_map,
+                q_cluster_sizes,
+                k_cluster_sizes,
+                q_sorted_indices,
+                k_centroids_view,
+                v_centroids,
+            )
+
+        dynamic_map = identify_dynamic_map(
+            q_centroids_view,
+            k_centroids_view,
+            q_cluster_sizes,
+            k_cluster_sizes,
+            self.top_p_kmeans,
+            min_kc_ratio,
         )
 
         return (q_permuted, k_permuted, v_permuted, dynamic_map, q_cluster_sizes, k_cluster_sizes, q_sorted_indices)
@@ -1096,16 +1158,44 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
         else:
             perm_result = self.semantic_aware_permutation(query, key, value, timestep)
             
-            if isinstance(perm_result, tuple) and len(perm_result) == 7:
-                q_perm, k_perm, v_perm, dyn_map, qc_sz_s, kc_sz_s, q_sorted_indices = perm_result
+            if isinstance(perm_result, tuple) and len(perm_result) in (7, 9):
+                if len(perm_result) == 9:
+                    (
+                        q_perm,
+                        k_perm,
+                        v_perm,
+                        dyn_map,
+                        qc_sz_s,
+                        kc_sz_s,
+                        q_sorted_indices,
+                        k_centroids,
+                        v_centroids,
+                    ) = perm_result
+                else:
+                    q_perm, k_perm, v_perm, dyn_map, qc_sz_s, kc_sz_s, q_sorted_indices = perm_result
+                    k_centroids = v_centroids = None
                 if self.enable_mem_save:
                     del query, key, value
 
                 # Backend selection for block-sparse attention.
-                # If you hit CUDA illegal memory access with the flashinfer path on some sparsity patterns,
-                # you can switch to the Triton implementation for robustness:
+                # EAR needs FlashInfer because centroid compensation consumes
+                # FlashInfer's log-sum-exp statistics from return_lse=True.
                 sparse_backend = os.environ.get("SVG_SPARSE_ATTN_BACKEND", "flashinfer").lower()
-                if sparse_backend == "triton":
+                if self.use_ear:
+                    if sparse_backend == "triton":
+                        raise ValueError("EAR requires SVG_SPARSE_ATTN_BACKEND=flashinfer for centroid compensation.")
+                    output_permuted = dynamic_block_sparse_prune_fwd_flashinfer(
+                        q_perm,
+                        k_perm,
+                        v_perm,
+                        k_centroids,
+                        v_centroids,
+                        dyn_map,
+                        qc_sz_s,
+                        kc_sz_s,
+                        is_cpu=False,
+                    )
+                elif sparse_backend == "triton":
                     from ...co_clustering import dynamic_block_sparse_fwd_triton
 
                     output_permuted = dynamic_block_sparse_fwd_triton(
@@ -1124,3 +1214,9 @@ class WanAttn_SAPAttn_Processor(WanAttn_SVGAttn_Processor2_0):
 
                 attn_output = attn_output.transpose(1, 2).flatten(2, 3)
                 return attn_output
+
+
+class WanAttn_EARAttn_Processor(WanAttn_SAPAttn_Processor):
+    """Wan SAP processor variant that enables SVG-EAR style error-aware routing."""
+
+    use_ear = True
