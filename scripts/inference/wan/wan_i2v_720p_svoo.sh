@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
+# SVOO-EAR integration notice: this script was modified to expose EAR mode
+# based on SVG-EAR (https://github.com/dyxg/SVG-EAR/tree/pr/ear-wan22-support).
+# SVG-EAR is licensed under the Apache License, Version 2.0; see
+# https://github.com/dyxg/SVG-EAR/blob/pr/ear-wan22-support/LICENSE.txt.
 set -euo pipefail
 
 # Example:
-#   MODEL_ROOT=~/models GPUS=0 RUN_ID=4 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh --pattern dense      # Original dense
-#   MODEL_ROOT=~/models GPUS=0 RUN_ID=2 MODEL_SIZE=A14B bash scripts/inference/wan/wan_i2v_720p_svoo.sh                      # Sparse SVOO
+#   MODEL_ROOT=~/models GPUS=0 RUN_ID=4 MODEL_SIZE=A14B PATTERN=dense bash scripts/inference/wan/wan_i2v_720p_svoo.sh  # Original dense
+#   MODEL_ROOT=~/models GPUS=0 RUN_ID=2 MODEL_SIZE=A14B PATTERN=svoo  bash scripts/inference/wan/wan_i2v_720p_svoo.sh  # Sparse SVOO
+#   MODEL_ROOT=~/models GPUS=0 RUN_ID=2 MODEL_SIZE=A14B PATTERN=ear   bash scripts/inference/wan/wan_i2v_720p_svoo.sh  # Sparse EAR
 #
 # User-facing overrides:
 #   MODEL_SIZE=14B|A14B        Select Wan2.1 14B or Wan2.2 A14B.
+#   PATTERN=svoo|ear|dense     Select the attention mode. PATTERN=ear writes to an ear result directory by default.
+#   EAR_GAMMA=1.0              Set the EAR error-estimation trade-off coefficient when PATTERN=ear.
 #   MODEL_ROOT=/path/to/models Look for local Hugging Face directories here.
 #   MODEL_PATH=/path/to/model  Override the selected model path directly.
 #   PROMPT_ID=1                Use data/example/${PROMPT_ID}/prompt.txt and image.jpg.
@@ -48,7 +55,13 @@ fi
 
 model_root="${MODEL_ROOT:-${root}/../../models}"
 model_size="${MODEL_SIZE:-14B}"
+pattern="${PATTERN:-svoo}"
+ear_gamma="${EAR_GAMMA:-1.0}"
 prompt_id="${PROMPT_ID:-1}"
+case "${pattern}" in
+  svoo|ear|dense) ;;
+  *) echo "Unknown PATTERN: ${pattern}. Expected one of: svoo, ear, dense." >&2; exit 1 ;;
+esac
 prompt_file="${PROMPT_FILE:-data/example/${prompt_id}/prompt.txt}"
 image_file="${IMAGE_FILE:-${IMAGE_PATH:-data/example/${prompt_id}/image.jpg}}"
 gpu_id="${GPU:-${CUDA_VISIBLE_DEVICES:-${GPUS:-0}}}"
@@ -67,7 +80,7 @@ case "${model_size}" in
   14B|14b|wan21_14b|wan21_i2v_14b)
     model_id="Wan-AI/Wan2.1-I2V-14B-720P-Diffusers"
     model_dir="Wan2.1-I2V-14B-720P-Diffusers"
-    output_dir="${OUTPUT_DIR:-result/wan2.1-14B/i2v/svoo}"
+    output_dir="${OUTPUT_DIR:-result/wan2.1-14B/i2v/${pattern}}"
     sparsity_csv="sparsity_profiles/sparsity_wan_14B_i2v.csv"
 
     # SVOO config. min_kc_ratio is the fallback; dynamic_min_kc_ratio_* clips CSV values.
@@ -88,7 +101,7 @@ case "${model_size}" in
   A14B|a14b|wan22|wan22_i2v_a14b)
     model_id="Wan-AI/Wan2.2-I2V-A14B-Diffusers"
     model_dir="Wan2.2-I2V-A14B-Diffusers"
-    output_dir="${OUTPUT_DIR:-result/wan2.2-14B/i2v/svoo}"
+    output_dir="${OUTPUT_DIR:-result/wan2.2-14B/i2v/${pattern}}"
     sparsity_csv="sparsity_profiles/sparsity_wan22_A14B_i2v.csv"
     default_mem_save=1
 
@@ -143,6 +156,7 @@ cmd=(
   --num_inference_steps "${num_inference_steps}"
   --resolution "${resolution}"
   --cpu_offload "${cpu_offload}"
+  --pattern "${pattern}"
   --first_times_fp "${first_times_fp}"
   --first_layers_fp "${first_layers_fp}"
   --num_q_centroids "${num_q_centroids}"
@@ -165,9 +179,11 @@ if [ -n "${HEIGHT:-}${WIDTH:-}" ]; then
   cmd+=(--height "${HEIGHT}" --width "${WIDTH}")
 fi
 [ "${SVOO_ZERO_STEP_KMEANS_INIT:-0}" = "1" ] && cmd+=(--zero_step_kmeans_init)
+[ "${pattern}" = "ear" ] && cmd+=(--ear_gamma "${ear_gamma}")
 cmd+=("$@")
 
 echo "GPU=${gpu_id} MODEL=${model_id}"
+echo "PATTERN=${pattern} EAR_GAMMA=${ear_gamma}"
 echo "CPU_OFFLOAD=${cpu_offload} SVOO_ENABLE_MEM_SAVE=${SVOO_ENABLE_MEM_SAVE} ENABLE_FAST_KERNEL=${ENABLE_FAST_KERNEL:-0}"
 echo "PROMPT=${prompt_file} IMAGE=${image_file}"
 echo "OUTPUT=${output_file}"
