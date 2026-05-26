@@ -15,7 +15,6 @@
 
 </div>
 
-SVOO is a training-free sparse attention method for video generation with offline sparsity profiles and online QK co-clustering.
 
 ## Installation
 
