@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>SVOO</h1>
+<img src="assets/logo.png" alt="SVOO logo" width="820">
 
 <h2>Attention Sparsity is Input-Stable: Training-Free Sparse Attention for Video Generation via Offline Sparsity Profiling and Online QK Co-Clustering</h2>
 
