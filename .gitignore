@@ -55,6 +55,7 @@ sparsity_profiles_optimized/
 
 # Logs
 *.log
+temp/
 
 ## Codex
 AGENTS.md

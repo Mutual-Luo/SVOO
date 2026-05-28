@@ -15,6 +15,13 @@
 
 </div>
 
+<div align="center">
+
+<video src="assets/svoo-art.mp4" autoplay controls muted loop playsinline width="820"></video>
+
+<p><a href="assets/svoo-art.mp4">Open the SVOO art video</a></p>
+
+</div>
 
 ## Installation
 
@@ -111,6 +118,14 @@ Outputs are written to `result/` unless `OUTPUT_DIR` or `OUTPUT_FILE` is set.
 | --- | --- | --- |
 | `CPU_OFFLOAD` | `0` | Set `1` to reduce GPU memory usage with CPU offload; this can be slower |
 | `SVOO_TRITON_TUNE` | `fixed` | Set `auto` to search the fastest Triton config for the current GPU |
+
+<div align="center">
+
+<video src="assets/wan13-comparison.mp4" autoplay controls muted loop playsinline width="820"></video>
+
+<p><a href="assets/wan13-comparison.mp4">Open the comparison video</a></p>
+
+</div>
 
 ## Acknowledgements
 
