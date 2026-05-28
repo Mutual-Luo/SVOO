@@ -13,7 +13,7 @@ VBench/
 
 # Generated inference outputs
 result/
-*.mp4
+# *.mp4
 *.avi
 *.mov
 *.mkv
