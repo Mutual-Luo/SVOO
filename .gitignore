@@ -19,6 +19,8 @@ result/
 *.mkv
 *.webm
 *.gif
+!assets/svoo-art.mp4
+!assets/wan13-comparison.mp4
 
 # Python/test/cache artifacts
 __pycache__/

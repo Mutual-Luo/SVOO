@@ -17,7 +17,7 @@
 
 <div align="center">
 
-<video src="assets/svoo-art.mp4" autoplay controls muted loop playsinline width="820"></video>
+<img src="assets/svoo-art.webp" alt="SVOO art demo" width="820">
 
 </div>
 
@@ -119,7 +119,7 @@ Outputs are written to `result/` unless `OUTPUT_DIR` or `OUTPUT_FILE` is set.
 
 <div align="center">
 
-<video src="assets/wan13-comparison.mp4" autoplay controls muted loop playsinline width="820"></video>
+<img src="assets/wan13-comparison.webp" alt="Wan2.1-T2V-1.3B comparison" width="820">
 
 </div>
 
