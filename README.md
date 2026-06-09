@@ -22,7 +22,7 @@
 </div>
 
 ## News
-[2026-06-09] SVOO has been integrated into the [SparseVideo](https://github.com/Mutual-Luo/SparseVideo) framework.
+[2026-06-09] ! SVOO has been integrated into the [SparseVideo](https://github.com/Mutual-Luo/SparseVideo) framework.
 
 ## Installation
 
