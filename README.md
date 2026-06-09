@@ -21,6 +21,9 @@
 
 </div>
 
+## News
+[2026-06-09] SVOO has been integrated into the [SparseVideo](https://github.com/Mutual-Luo/SparseVideo) framework.
+
 ## Installation
 
 Prerequisites: Linux, Conda, Git, and an NVIDIA GPU with CUDA support.
